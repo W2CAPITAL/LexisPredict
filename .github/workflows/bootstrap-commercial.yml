@@ -1,39 +1,14 @@
-name: Bootstrap LexisPredict Commercial
+name: Commercial Repo Check
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  bootstrap:
-    if: github.event.head_commit.message != 'chore: bootstrap from W1CAPITAL/LexisPredict'
+  check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout destination
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Copy stable LexisPredict base
-        shell: bash
-        run: |
-          set -euo pipefail
-          git clone --depth=1 https://github.com/W1CAPITAL/LexisPredict.git /tmp/lexis-source
-          rsync -a --delete \
-            --exclude='.git' \
-            --exclude='.github/workflows/bootstrap-commercial.yml' \
-            /tmp/lexis-source/ ./
-          mkdir -p .github/workflows
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to bootstrap."
-            exit 0
-          fi
-          git commit -m "chore: bootstrap from W1CAPITAL/LexisPredict"
-          git push origin HEAD:main
+      - uses: actions/checkout@v4
+      - run: echo "LexisPredict commercial repository ready"
