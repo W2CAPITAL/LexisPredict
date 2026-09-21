@@ -21,6 +21,7 @@ import { fetchDataJud } from '@/lib/datajud';
 import {
   canRunOperationalScanner,
   canUseAllOperationalFeatures,
+  resolveCaseScope,
 } from '@/lib/roles';
 
 /** Uma retentativa em timeout/rede para DataJud/DJEN (não multiplica lote). */
@@ -903,7 +904,7 @@ export async function scanSingleCaseAction(
   }
 
   const safeEmpresaId = String(empresa_id);
-  if (!ctx.isSupervisor && !ctx.isSuperAdmin) {
+  if (resolveCaseScope(ctx as any) === 'mine') {
     const admin = await getSupabaseAdmin();
     const raw = String(protocolo || '').trim();
     const digits = raw.replace(/\D/g, '');
@@ -1124,7 +1125,7 @@ export async function fetchCompanyProcessosAction() {
     const ctx = await getUserContext();
     const empresa_id = ctx.empresa_id;
     if (!empresa_id) return empty;
-    const companyWide = !!(ctx.isSupervisor || ctx.isSuperAdmin);
+    const companyWide = resolveCaseScope(ctx as any) === 'company';
     if (!companyWide) {
       return { ...empty, error: "supervisao_required" };
     }
@@ -1440,7 +1441,7 @@ export async function reclassificarExecutivoCarteiraAction() {
   try {
     const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
     const admin = await getSupabaseAdmin();
-    const companyWide = !!(ctx.isSupervisor || ctx.isSuperAdmin);
+    const companyWide = resolveCaseScope(ctx as any) === 'company';
 
     let page = 0;
     const pageSize = 500;
@@ -1629,7 +1630,7 @@ export async function batchScanExecutivoAction(opts?: {
     return { success: false, done: 0, error: 'Função disponível para Administrador, Supervisor ou Superadmin.' };
   }
 
-  const escopoEmpresa = !!(isSuperAdmin || isSupervisor);
+  const escopoEmpresa = resolveCaseScope(ctx as any) === 'company';
   const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 50);
   const onlyMissing = opts?.onlyMissing !== false;
   const priorizarEncerrados = opts?.priorizarEncerrados !== false;
