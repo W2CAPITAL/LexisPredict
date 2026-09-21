@@ -26,10 +26,6 @@ function isValidCourtesyToken(raw?: string | null) {
   return got.length === expected.length && timingSafeEqual(got, expected);
 }
 
-export async function validateCourtesyTokenAction(token: string) {
-  return { ok: true, valid: isValidCourtesyToken(token) };
-}
-
 async function enforceSignupRateLimit(email: string) {
   const admin = await getSupabaseAdmin();
   const h = await headers();
@@ -79,6 +75,44 @@ async function enforceSignupRateLimit(email: string) {
   return { ok: true as const };
 }
 
+async function enforceTokenValidationRateLimit() {
+  const admin = await getSupabaseAdmin();
+  const h = await headers();
+  const forwarded = String(h.get("x-forwarded-for") || "").split(",")[0]?.trim();
+  const ip = forwarded || String(h.get("x-real-ip") || "unknown");
+  const key = createHash("sha256").update(ip, "utf8").digest("hex");
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const { count, error } = await admin
+    .from("commercial_signup_attempts")
+    .select("id", { head: true, count: "exact" })
+    .eq("scope", "courtesy_token")
+    .eq("key_hash", key)
+    .gte("created_at", since);
+
+  if (!error && Number(count || 0) >= 20) {
+    return {
+      ok: false as const,
+      error: "Muitas tentativas de token. Aguarde antes de tentar novamente.",
+    };
+  }
+
+  try {
+    await admin.from("commercial_signup_attempts").insert({
+      scope: "courtesy_token",
+      key_hash: key,
+    });
+  } catch {}
+
+  return { ok: true as const };
+}
+
+export async function validateCourtesyTokenAction(token: string) {
+  const rate = await enforceTokenValidationRateLimit();
+  if (!rate.ok) return { ok: false, valid: false, error: rate.error };
+  return { ok: true, valid: isValidCourtesyToken(token) };
+}
+
 export type CommercialSignupInput = {
   empresa: string;
   email: string;
@@ -97,11 +131,6 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
   const nome = String(input.nome || email.split("@")[0] || "ADMINISTRADOR").trim();
   const requestedPlan = normalizePlanId(input.plan || "essencial");
   const rawCourtesyToken = String(input.courtesyToken || "").trim();
-  const courtesy = isValidCourtesyToken(rawCourtesyToken);
-
-  if (rawCourtesyToken && !courtesy) {
-    return { ok: false as const, code: "invalid_token", error: "Token de liberação inválido." };
-  }
 
   if (!empresaNome) return { ok: false as const, error: "Informe o nome da empresa." };
   if (!email || !email.includes("@")) return { ok: false as const, error: "Informe um e-mail válido." };
@@ -109,6 +138,11 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
 
   const rate = await enforceSignupRateLimit(email);
   if (!rate.ok) return rate;
+
+  const courtesy = isValidCourtesyToken(rawCourtesyToken);
+  if (rawCourtesyToken && !courtesy) {
+    return { ok: false as const, code: "invalid_token", error: "Token de liberação inválido." };
+  }
 
   const admin = await getSupabaseAdmin();
   const empresaId = randomUUID();
