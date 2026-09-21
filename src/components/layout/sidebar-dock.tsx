@@ -18,6 +18,7 @@ import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { operatorRouteAllowed } from "@/lib/roles";
 
 const primary = [
   ["Painel", "/", LayoutDashboard],
@@ -59,7 +60,7 @@ const more = [
 export function SidebarDock() {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
-  const { isAdmin, isSuperAdmin, canScan } = useAdmin();
+  const { role, isSupervisor, isSuperAdmin, canScan } = useAdmin();
   const { plan } = usePlano();
   const { status, toggleMinimize } = useDataJudScanStore();
   const [open, setOpen] = useState(false);
@@ -69,7 +70,7 @@ export function SidebarDock() {
     // label: string — admin/superadmin labels are not in the `more` const union
     const items: { label: string; href: string; icon: React.ComponentType<{ className?: string; size?: number | string }> }[] =
       more.map(([label, href, icon]) => ({ label, href, icon }));
-    if (isAdmin) {
+    if (isSupervisor) {
       items.push(
         { label: "Supervisão", href: "/supervisao", icon: ShieldCheck },
         { label: "Equipe", href: "/team", icon: Users },
@@ -84,14 +85,16 @@ export function SidebarDock() {
     }
     const q = query.trim().toLowerCase();
     return filterNavByPlan(items, isSuperAdmin ? "maximo" : plan).filter(
-      (item) => !q || `${item.label} ${item.href}`.toLowerCase().includes(q),
+      (item) =>
+        (role !== "Operador" || operatorRouteAllowed(item.href)) &&
+        (!q || `${item.label} ${item.href}`.toLowerCase().includes(q)),
     );
-  }, [isAdmin, isSuperAdmin, plan, query]);
+  }, [role, isSupervisor, isSuperAdmin, plan, query]);
 
   const main = filterNavByPlan(
     primary.map(([label, href, icon]) => ({ label, href, icon })),
     isSuperAdmin ? "maximo" : plan,
-  );
+  ).filter((item) => role !== "Operador" || operatorRouteAllowed(item.href));
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
