@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin } from "@/hooks/use-admin";
+import { useAuth } from "@/components/auth/auth-provider";
 import { hrefLiberado, type PlanId, normalizePlanId } from "@/lib/planos-pacotes";
 import { planoDaEmpresa, savePlanoEmpresa, subscribeEmpresaPlanos } from "@/lib/planos-store";
 import {
@@ -26,6 +27,7 @@ const CLEAN_FALLBACK: AssinaturaStatus = {
 };
 
 export function usePlano() {
+  const { user, loading: authLoading } = useAuth();
   const { profile, isSuperAdmin } = useAdmin();
   const empresaId = profile?.empresa_id || "";
 
@@ -67,19 +69,38 @@ export function usePlano() {
   }, [empresaId]);
 
   useEffect(() => {
+    // Nenhuma decisão comercial enquanto a sessão/perfil ainda está carregando.
+    if (authLoading || (user && !profile)) {
+      setServerLoaded(false);
+      setSetupRequired(false);
+      setServerError(null);
+      return;
+    }
+
+    // Sem sessão autenticada não existe assinatura a validar.
+    if (!user) {
+      setServerLoaded(false);
+      setSetupRequired(false);
+      setServerError(null);
+      setBillingStatus(null);
+      setSelfServiceUnlocked(false);
+      setOnboardingCompleted(false);
+      return;
+    }
+
     if (isSuperAdmin) {
       setSetupRequired(false);
       setServerError(null);
       setBillingStatus("active");
-      setSelfServiceUnlocked(true);
+      setSelfServiceUnlocked(false);
       setOnboardingCompleted(true);
       setServerLoaded(true);
       return;
     }
 
     if (!empresaId) {
-      setSetupRequired(!!profile);
-      setServerError(profile ? "Empresa ainda não vinculada ao perfil." : null);
+      setSetupRequired(true);
+      setServerError("Empresa ainda não vinculada ao perfil.");
       setServerLoaded(true);
       setAss(CLEAN_FALLBACK);
       setPlan("essencial");
@@ -88,6 +109,11 @@ export function usePlano() {
       setOnboardingCompleted(false);
       return;
     }
+
+    // A empresa mudou ou acabou de ser carregada: invalida qualquer estado
+    // comercial anterior até o servidor responder para este tenant.
+    setServerLoaded(false);
+    setServerError(null);
 
     let live = true;
 
@@ -104,7 +130,8 @@ export function usePlano() {
 
       if (!res?.ok) {
         setSetupRequired(!!res?.setupRequired);
-        setServerError(res?.error || "Não foi possível consultar a assinatura.");
+        setServerError(res?.error || "Não foi possível validar a assinatura agora.");
+        setBillingStatus(null);
         setServerLoaded(true);
         return;
       }
@@ -178,11 +205,27 @@ export function usePlano() {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [empresaId, profile, isSuperAdmin]);
+  }, [empresaId, profile, isSuperAdmin, user, authLoading]);
 
   const left = daysLeft(ass.expiresAt);
-  const expired = !isSuperAdmin && !setupRequired && isExpired(ass.expiresAt);
-  const blocked = !isSuperAdmin && !setupRequired && !!ass.blocked;
+  const subscriptionAuthoritative =
+    !!user &&
+    !!profile &&
+    !!empresaId &&
+    serverLoaded &&
+    !setupRequired &&
+    !serverError;
+
+  const expired =
+    subscriptionAuthoritative &&
+    !isSuperAdmin &&
+    isExpired(ass.expiresAt);
+
+  const blocked =
+    subscriptionAuthoritative &&
+    !isSuperAdmin &&
+    !!ass.blocked;
+
   const locked = blocked || expired;
 
   return useMemo(
@@ -199,6 +242,7 @@ export function usePlano() {
       setupRequired,
       serverError,
       serverLoaded,
+      subscriptionAuthoritative,
       billingStatus,
       selfServiceUnlocked,
       onboardingCompleted,
@@ -214,6 +258,6 @@ export function usePlano() {
         return hrefLiberado(href, plan);
       },
     }),
-    [plan, empresaId, ass, left, expired, blocked, locked, setupRequired, serverError, isSuperAdmin, serverLoaded, billingStatus, selfServiceUnlocked, onboardingCompleted, navLayout, sidebarCompact]
+    [plan, empresaId, ass, left, expired, blocked, locked, setupRequired, serverError, isSuperAdmin, serverLoaded, subscriptionAuthoritative, billingStatus, selfServiceUnlocked, onboardingCompleted, navLayout, sidebarCompact]
   );
 }
