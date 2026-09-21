@@ -801,7 +801,7 @@ const handleSaveAttendance = async () => {
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="h-9 px-4 border-none bg-primary/5 text-primary font-black uppercase text-[10px]">Audit Híbrida Ativa</Badge>
-            <Button asChild size="sm" className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-primary hover:text-black">
+            <Button asChild size="sm" className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black !text-white hover:bg-primary hover:!text-black">
               <Link href="/cases?new=1">
                 <Plus size={16} className="mr-2 inline" />
                 Novo Processo
@@ -1021,8 +1021,8 @@ const handleSaveAttendance = async () => {
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
           <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
-            <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
-              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
+            <DialogHeader className="p-4 sm:p-6 bg-black !text-white shrink-0">
+              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3 !text-white"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
               <ScrollArea className="flex-1 w-full h-full">
@@ -1036,7 +1036,7 @@ const handleSaveAttendance = async () => {
                          <div key={i} className={cn("relative p-5 border-2 rounded-xl transition-all", item.type === 'djen' ? "border-blue-600 bg-blue-50/10 shadow-[4px_4px_0px_#2563eb]" : "border-slate-200 bg-slate-50/50")}>
                            <div className="flex items-start justify-between mb-3">
                              <div className="flex items-center gap-3">
-                               <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
+                               <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600 !text-white" : "bg-slate-600 !text-white")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
                                {item.type === 'djen' && (item.raw.link || historyResult?.case?.djen_ultimo_link) && (
                                  <a href={item.raw.link || historyResult?.case?.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
                                    <Globe size={10} /> Abrir no D.O.
@@ -1066,11 +1066,11 @@ const handleSaveAttendance = async () => {
 
                   <section className="space-y-6 pt-6 border-t">
                     <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Rascunho com IA (opcional)</h3>
-                    <div className="bg-black text-white p-4 sm:p-6 space-y-4 rounded-xl">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
+                    <div className="bg-black !text-white p-4 sm:p-6 space-y-4 rounded-xl [&_*]:selection:bg-white/20">
+                      <p className="text-[9px] font-black uppercase tracking-widest !text-white flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                          <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-10 bg-white/10 border-white/20 !text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-popover text-popover-foreground border rounded-lg">
                             <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
                             <SelectItem value="claude" className="text-[9px] font-black uppercase">Claude AI (OmniRoute)</SelectItem>
@@ -1115,7 +1115,7 @@ const handleSaveAttendance = async () => {
                   </section>
                 </div>
               </ScrollArea>
-              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
+              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black !text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
             </div>
           </DialogContent>
         </Dialog>
