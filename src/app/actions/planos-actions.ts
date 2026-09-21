@@ -357,26 +357,38 @@ export async function trocarMeuPlanoAction(
     if (empresaError) return { ok: false as const, error: empresaError.message };
     if (!empresa) return { ok: false as const, error: "Empresa não encontrada." };
 
-    const { error: requestError } = await admin
+    const { data: pendingRequest, error: pendingReadError } = await admin
       .from("solicitacoes_assinatura")
-      .upsert(
-        {
-          empresa_id: empresaId,
+      .select("id")
+      .eq("empresa_id", empresaId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pendingReadError) {
+      return { ok: false as const, error: pendingReadError.message };
+    }
+
+    if (pendingRequest?.id) {
+      const { error: requestError } = await admin
+        .from("solicitacoes_assinatura")
+        .update({
           solicitado_por: ctx.auth_id,
           plano: p,
           ciclo: c,
-          status: "pending",
-          observacao: "Solicitação de mudança criada pelo painel comercial",
+          observacao: "Solicitação de mudança atualizada pelo painel comercial",
           decided_at: null,
           decided_by: null,
-          updated_at: now,
-        },
-        { onConflict: "empresa_id,status" }
-      );
+        })
+        .eq("id", pendingRequest.id)
+        .eq("empresa_id", empresaId);
 
-    if (requestError) {
-      // Compatibilidade com schemas sem unique composto: insere uma nova solicitação.
-      const { error: insertError } = await admin
+      if (requestError) {
+        return { ok: false as const, error: requestError.message };
+      }
+    } else {
+      const { error: requestError } = await admin
         .from("solicitacoes_assinatura")
         .insert({
           empresa_id: empresaId,
@@ -387,8 +399,8 @@ export async function trocarMeuPlanoAction(
           observacao: "Solicitação de mudança criada pelo painel comercial",
         });
 
-      if (insertError) {
-        return { ok: false as const, error: insertError.message };
+      if (requestError) {
+        return { ok: false as const, error: requestError.message };
       }
     }
 
