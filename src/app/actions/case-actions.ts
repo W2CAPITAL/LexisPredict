@@ -18,6 +18,10 @@ import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from '@/lib/auto-encerrar-scan';
 import { fetchDataJud } from '@/lib/datajud';
+import {
+  canRunOperationalScanner,
+  canUseAllOperationalFeatures,
+} from '@/lib/roles';
 
 /** Uma retentativa em timeout/rede para DataJud/DJEN (não multiplica lote). */
 async function withOneRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
@@ -885,17 +889,48 @@ export async function scanSingleCaseAction(
   options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean } = {}
 ) {
   const ctx = await getUserContext();
-  const { empresa_id } = ctx;
-  if ((ctx as any).isViewer || String(ctx.cargo || '').toLowerCase().includes('visualiz')) {
+  const { empresa_id, auth_id } = ctx;
+  if (!canRunOperationalScanner(ctx as any)) {
     return {
       success: false,
-      error: 'Modo visualização: scanner tribunal bloqueado neste perfil.',
+      error: 'Scanner disponível para Administrador, Supervisor ou Superadmin.',
       movimentos: [],
       comunicacoes: [],
     };
   }
-  if (!empresa_id) return { success: false, error: '401', movimentos: [], comunicacoes: [] };
+  if (!empresa_id || !auth_id) {
+    return { success: false, error: '401', movimentos: [], comunicacoes: [] };
+  }
+
   const safeEmpresaId = String(empresa_id);
+  if (!ctx.isSupervisor && !ctx.isSuperAdmin) {
+    const admin = await getSupabaseAdmin();
+    const raw = String(protocolo || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    const variants = [raw];
+    if (digits && digits !== raw) variants.push(digits);
+    if (digits.length === 20) {
+      variants.push(
+        `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`
+      );
+    }
+    const { data: rows } = await admin
+      .from('processos')
+      .select('created_by')
+      .eq('empresa_id', safeEmpresaId)
+      .in('protocolo_ref', Array.from(new Set(variants)))
+      .limit(1);
+
+    const owner = String(rows?.[0]?.created_by || '');
+    if (!owner || owner !== String(auth_id)) {
+      return {
+        success: false,
+        error: 'Você só pode escanear processos da sua própria carteira.',
+        movimentos: [],
+        comunicacoes: [],
+      };
+    }
+  }
 
   const useFast = options.fast === true;
   let res = await auditCaseCoreSystem(
@@ -999,8 +1034,11 @@ export async function fetchTeamPerformanceAction() {
     getStoredCasesForEmpresa,
     getUserContext,
   } = await import('@/lib/server-db');
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { users: [], cases: [] };
+  const ctx = await getUserContext();
+  const { empresa_id } = ctx;
+  if (!empresa_id || (!ctx.isSupervisor && !ctx.isSuperAdmin)) {
+    return { users: [], cases: [] };
+  }
   const [users, cases] = await Promise.all([
     getEmpresaUsers(),
     getStoredCasesForEmpresa(empresa_id, true),
@@ -1049,8 +1087,9 @@ export async function registrarAuditoriaEventAction(
 }
 
 /**
- * Visão da empresa inteira (todos os perfis): todos os processos da empresa
- * + trilha de auditoria (quem atendeu/editou/apagou) + usuários.
+ * Visão operacional:
+ * - Administrador: somente seus processos.
+ * - Supervisor/Superadmin: empresa inteira + auditoria + usuários + ranking.
  */
 export async function fetchCompanyProcessosAction() {
   const {
@@ -1075,24 +1114,27 @@ export async function fetchCompanyProcessosAction() {
     const ctx = await getUserContext();
     const empresa_id = ctx.empresa_id;
     if (!empresa_id) return empty;
+    const companyWide = !!(ctx.isSupervisor || ctx.isSuperAdmin);
 
-    // 1) Métricas leves + 2) 1ª página da lista + 3) audit/users — em paralelo
+    // Administrador recebe somente a própria carteira.
+    // Auditoria, usuários e ranking são dados de supervisão.
     const { fetchRankingAtendentesEmpresaAction } = await import(
       "@/app/actions/ranking-atendentes-action"
     );
 
     const [metrics, casesPage, audit, users] = await Promise.all([
-      fetchRankingAtendentesEmpresaAction(5).catch((e: any) => {
-        console.error("[company] metrics", e?.message);
-        return { ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 };
-      }),
-      // 1ª página — 300 linhas (tabela); total vem do COUNT
+      companyWide
+        ? fetchRankingAtendentesEmpresaAction(5).catch((e: any) => {
+            console.error("[company] metrics", e?.message);
+            return { ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 };
+          })
+        : Promise.resolve({ ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 }),
       getStoredCasesPageForEmpresa(empresa_id, 500, 0, true, { onlyAtivos: true }).catch((e: any) => {
         console.error("[company] page ativos", e?.message);
         return [] as any[];
       }),
-      fetchAuditoriaLogsAction(empresa_id).catch(() => []),
-      getEmpresaUsers().catch(() => []),
+      companyWide ? fetchAuditoriaLogsAction(empresa_id).catch(() => []) : Promise.resolve([]),
+      companyWide ? getEmpresaUsers().catch(() => []) : Promise.resolve([]),
     ]);
 
     let cases = Array.isArray(casesPage) ? casesPage : [];
@@ -1177,8 +1219,12 @@ export async function clearDataJudAuditAction(protocolo: string) {
  */
 export async function recalibrateCasesAction() {
   try {
-    const { empresa_id } = await getUserContext();
+    const ctx = await getUserContext();
+    const { empresa_id } = ctx;
     if (!empresa_id) return { success: false, error: 'Sessão expirada', updated: 0 };
+    if (!canUseAllOperationalFeatures(ctx as any)) {
+      return { success: false, error: 'Função disponível para Administrador, Supervisor ou Superadmin.', updated: 0 };
+    }
 
     const cases = await getStoredCasesForEmpresa(empresa_id, true);
     if (!cases.length) return { success: true, updated: 0, message: 'Nenhum processo.' };
