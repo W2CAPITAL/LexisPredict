@@ -276,6 +276,10 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
     plano_bloqueio_motivo: null,
     plano_expira_em: null,
     billing_status: billingStatus,
+    plan_self_service_unlocked: courtesy,
+    onboarding_completed: false,
+    nav_layout: "dock",
+    sidebar_compact: false,
   });
 
   if (empresaError) {
@@ -413,6 +417,8 @@ export async function activateCourtesyPlanAction(token: string, plan: PlanId) {
       plano_bloqueio_motivo: null,
       plano_expira_em: null,
       billing_status: "active",
+      plan_self_service_unlocked: true,
+      onboarding_completed: false,
     })
     .eq("id", ctx.empresa_id)
     .select("id")
