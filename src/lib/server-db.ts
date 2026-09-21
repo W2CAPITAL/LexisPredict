@@ -58,7 +58,7 @@ const resolveUserContext = cache(async () => {
     isSuperAdmin,
     isSupervisor,
   });
-  const isMasterView = caseScope === 'company';
+  const isMasterView = caseScope === 'empresa';
   const isAdministrador =
     /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer && !isSupervisor && !isSuperAdmin;
   const isEmpresaWide = isMasterView;
@@ -159,7 +159,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   // O parâmetro isAdmin é legado e NÃO amplia visibilidade.
   // O escopo vem exclusivamente de resolveCaseScope().
-  const wantAll = resolveCaseScope(context as any) === 'company';
+  const wantAll = resolveCaseScope(context as any) === 'empresa';
 
   const mapRows = (rows: any[]): LegalCase[] => {
     const out: LegalCase[] = [];
@@ -821,7 +821,7 @@ export async function saveStoredCasesForEmpresa(
         return [];
       }
 
-      const owner = caseScope === 'company'
+      const owner = caseScope === 'empresa'
         ? existingOwner || String((item as any).created_by || auth_id)
         : auth_id;
 
