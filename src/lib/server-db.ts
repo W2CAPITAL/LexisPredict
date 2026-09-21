@@ -80,13 +80,14 @@ const resolveUserContext = cache(async () => {
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = isSuperAdminProfile(profile) || checkIfSuperAdmin(profile);
   const isSupervisor = canSupervisaoCarteira(profile) || checkIfSupervisor(profile);
-  // Visão de carteira integral: Superadmin, Supervisor e Visualizador (vê empresa toda)
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
-  // Lote1: só Superadmin e Supervisor veem todos os casos.
+  // Regra comercial oficial:
+  // Supervisor/Superadmin = empresa inteira.
+  // Administrador/Operador/Visualizador = somente processos próprios.
   const isMasterView = isSuperAdmin || isSupervisor;
   const isAdministrador =
-    /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
-  const isEmpresaWide = isSuperAdmin || isSupervisor || isViewer || isAdministrador;
+    /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer && !isSupervisor && !isSuperAdmin;
+  const isEmpresaWide = isMasterView;
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -181,10 +182,10 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (context.empresa_id !== empresaId) throw new Error("Acesso à empresa não autorizado.");
   const { auth_id, isSuperAdmin, isSupervisor } = context as any;
 
-  // isAdmin=true → /processos (empresa toda)
-  // Superadmin/Supervisor → carteira completa em Cases/Dashboard
-  // Operador/Admin → SOMENTE created_by = auth_id
-  const wantAll = isAdmin === true || !!(isSuperAdmin || isSupervisor);
+  // O parâmetro isAdmin é legado e NÃO amplia visibilidade.
+  // Apenas Supervisor/Superadmin veem a carteira completa.
+  // Administrador/Operador/Visualizador ficam em created_by = auth_id.
+  const wantAll = !!(isSuperAdmin || isSupervisor);
 
   const mapRows = (rows: any[]): LegalCase[] => {
     const out: LegalCase[] = [];
@@ -317,7 +318,8 @@ export async function getStoredCasesPageForEmpresa(
       query = query.not("status", "in", '("Arquivado","ENCERRADO","Extinto","SUSPENSO")');
     }
 
-    if (!isAdmin && !isMasterView && !(context as any).isEmpresaWide && auth_id) {
+    if (!isMasterView) {
+      if (!auth_id) return [];
       query = query.eq("created_by", auth_id);
     }
 
