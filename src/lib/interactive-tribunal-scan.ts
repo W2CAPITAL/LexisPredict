@@ -32,24 +32,15 @@ export type InteractiveScanResult = {
   };
 };
 
-function isDataJudOk(result: any) {
-  return result?.sourceStatus?.datajud?.ok === true && result?.offline !== true;
-}
-
-function isDjenServerOk(result: any) {
-  return result?.sourceStatus?.djen?.ok === true && result?.offline !== true;
-}
-
 function mergeCasePatch(...patches: Array<Record<string, any> | null | undefined>) {
   return Object.assign({}, ...patches.filter(Boolean));
 }
 
 /**
- * Scanner interativo comercial:
- * - DataJud fica no servidor;
- * - DJEN tenta primeiro direto no browser (IP do usuário);
- * - se o browser não conseguir consultar, tenta fallback server-side;
- * - uma fonte indisponível nunca apaga o resultado válido da outra.
+ * Scanner interativo:
+ * - DataJud: servidor
+ * - DJEN: navegador primeiro (IP do usuário), servidor como fallback
+ * - zero resultados válidos NÃO é considerado offline
  */
 export async function scanInteractiveCase(
   protocolo: string,
@@ -64,59 +55,59 @@ export async function scanInteractiveCase(
   const wantsDataJud = mode === "datajud" || mode === "both";
   const wantsDjen = mode === "djen" || mode === "both";
 
-  let datajudResult: any = null;
-  let djenClient: DjenClientResult | null = null;
+  const datajudPromise: Promise<any | null> = wantsDataJud
+    ? scanSingleCaseAction(protocolo, {
+        mode: "datajud",
+        fast: options.fast === true,
+        useClaudeAi: options.useClaudeAi === true,
+      })
+    : Promise.resolve(null);
+
+  const djenPromise: Promise<DjenClientResult | null> = wantsDjen
+    ? djenBuscaProcesso({
+        protocolo,
+        dataInicio: options.dataInicioDjen,
+      })
+    : Promise.resolve(null);
+
+  const [datajudResult, djenClient] = await Promise.all([
+    datajudPromise,
+    djenPromise,
+  ]);
+
   let djenPersisted: any = null;
   let djenFallback: any = null;
 
-  const tasks: Promise<void>[] = [];
-
-  if (wantsDataJud) {
-    tasks.push(
-      (async () => {
-        datajudResult = await scanSingleCaseAction(protocolo, {
-          mode: "datajud",
-          fast: options.fast === true,
-          useClaudeAi: options.useClaudeAi === true,
-        });
-      })()
-    );
+  if (wantsDjen && djenClient?.ok) {
+    djenPersisted = await applyBrowserDjenResultAction(protocolo, {
+      items: djenClient.items,
+      count: djenClient.count,
+    });
+  } else if (wantsDjen) {
+    djenFallback = await scanSingleCaseAction(protocolo, {
+      mode: "djen",
+      fast: false,
+      useClaudeAi: false,
+    });
   }
 
-  if (wantsDjen) {
-    tasks.push(
-      (async () => {
-        djenClient = await djenBuscaProcesso({
-          protocolo,
-          dataInicio: options.dataInicioDjen,
-        });
+  const datajudOk =
+    !wantsDataJud ||
+    (datajudResult?.sourceStatus?.datajud?.ok === true &&
+      datajudResult?.offline !== true);
 
-        if (djenClient.ok) {
-          djenPersisted = await applyBrowserDjenResultAction(protocolo, {
-            items: djenClient.items,
-            count: djenClient.count,
-          });
-          return;
-        }
+  const djenBrowserOk =
+    !!(wantsDjen && djenClient?.ok && djenPersisted?.success === true);
 
-        // Fallback para situações em que o navegador está bloqueado por
-        // extensão, proxy corporativo ou política local. O fallback não
-        // substitui o fluxo principal browser-first.
-        djenFallback = await scanSingleCaseAction(protocolo, {
-          mode: "djen",
-          fast: false,
-          useClaudeAi: false,
-        });
-      })()
+  const djenServerOk =
+    !!(
+      wantsDjen &&
+      !djenBrowserOk &&
+      djenFallback?.sourceStatus?.djen?.ok === true &&
+      djenFallback?.offline !== true
     );
-  }
 
-  await Promise.all(tasks);
-
-  const datajudOk = wantsDataJud ? isDataJudOk(datajudResult) : true;
-  const djenBrowserOk = !!(djenClient?.ok && djenPersisted?.success);
-  const djenServerOk = !!(!djenBrowserOk && isDjenServerOk(djenFallback));
-  const djenOk = wantsDjen ? djenBrowserOk || djenServerOk : true;
+  const djenOk = !wantsDjen || djenBrowserOk || djenServerOk;
 
   const movimentos = Array.isArray(datajudResult?.movimentos)
     ? datajudResult.movimentos
@@ -141,8 +132,8 @@ export async function scanInteractiveCase(
     null;
 
   const requestedOk = datajudOk && djenOk;
-  const atLeastOneOk =
-    (!wantsDataJud || datajudOk) || (!wantsDjen || djenOk);
+  const atLeastOneRequestedSourceOk =
+    (wantsDataJud && datajudOk) || (wantsDjen && djenOk);
 
   const datajudError =
     wantsDataJud && !datajudOk
@@ -164,6 +155,7 @@ export async function scanInteractiveCase(
       : null;
 
   const statusParts: string[] = [];
+
   if (wantsDataJud) {
     statusParts.push(
       datajudOk
@@ -173,6 +165,7 @@ export async function scanInteractiveCase(
         : "DataJud: indisponível"
     );
   }
+
   if (wantsDjen) {
     statusParts.push(
       djenOk
@@ -184,11 +177,11 @@ export async function scanInteractiveCase(
   }
 
   return {
-    success: atLeastOneOk,
-    offline: !atLeastOneOk,
-    partial: atLeastOneOk && !requestedOk,
+    success: atLeastOneRequestedSourceOk,
+    offline: !atLeastOneRequestedSourceOk,
+    partial: atLeastOneRequestedSourceOk && !requestedOk,
     error:
-      !atLeastOneOk
+      !atLeastOneRequestedSourceOk
         ? [datajudError, djenError].filter(Boolean).join(" · ")
         : undefined,
     message: statusParts.join(" · "),
