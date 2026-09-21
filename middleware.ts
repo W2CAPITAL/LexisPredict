@@ -80,6 +80,13 @@ export async function middleware(request: NextRequest) {
   const isStaticFile = /\.[a-z0-9]+$/i.test(path)
   const isPublicApi = starts(path, PUBLIC_API)
   const isPublic = isAuthPage || path.startsWith('/termos') || isPublicApi || isStaticFile
+  const isGuest = request.cookies.get('lexis_guest')?.value === '1'
+
+  if (isGuest && !isAuthPage) {
+    response.headers.set('Cache-Control', 'private, no-store')
+    response.headers.set('X-Lexis-Guest', '1')
+    return applySecurityHeaders(response)
+  }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
