@@ -15,6 +15,7 @@ import {
 } from "@/lib/planos-assinatura";
 import { getMinhaAssinaturaAction } from "@/app/actions/planos-actions";
 import { invalidateCarteiraCache, clearScanProgress } from "@/lib/session-carteira-cache";
+import { saveNavLayout, type NavLayoutMode } from "@/lib/nav-layout";
 
 const CLEAN_FALLBACK: AssinaturaStatus = {
   plan: "essencial",
@@ -36,6 +37,10 @@ export function usePlano() {
   const [serverLoaded, setServerLoaded] = useState(false);
   const [setupRequired, setSetupRequired] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [selfServiceUnlocked, setSelfServiceUnlocked] = useState(false);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+  const [navLayout, setNavLayout] = useState<NavLayoutMode>("dock");
+  const [sidebarCompact, setSidebarCompact] = useState(false);
   const blockedRef = useRef(false);
 
   useEffect(() => {
@@ -63,6 +68,8 @@ export function usePlano() {
     if (isSuperAdmin) {
       setSetupRequired(false);
       setServerError(null);
+      setSelfServiceUnlocked(true);
+      setOnboardingCompleted(true);
       setServerLoaded(true);
       return;
     }
@@ -73,6 +80,8 @@ export function usePlano() {
       setServerLoaded(true);
       setAss(CLEAN_FALLBACK);
       setPlan("essencial");
+      setSelfServiceUnlocked(false);
+      setOnboardingCompleted(false);
       return;
     }
 
@@ -106,7 +115,24 @@ export function usePlano() {
 
       setSetupRequired(false);
       setServerError(null);
+      setSelfServiceUnlocked(!!res.selfServiceUnlocked);
+      setOnboardingCompleted(!!res.onboardingCompleted);
+      const serverNav: NavLayoutMode = res.navLayout === "vertical" ? "vertical" : "dock";
+      setNavLayout(serverNav);
+      setSidebarCompact(!!res.sidebarCompact);
       blockedRef.current = next.blocked;
+
+      if (res.onboardingCompleted) {
+        saveNavLayout(serverNav);
+        try {
+          localStorage.setItem("lexis-sidebar-compact-v2", res.sidebarCompact ? "1" : "0");
+          window.dispatchEvent(
+            new CustomEvent("lexis-nav-display", {
+              detail: { compact: !!res.sidebarCompact },
+            })
+          );
+        } catch {}
+      }
 
       if (next.blocked) {
         try {
@@ -168,6 +194,10 @@ export function usePlano() {
       setupRequired,
       serverError,
       serverLoaded,
+      selfServiceUnlocked,
+      onboardingCompleted,
+      navLayout,
+      sidebarCompact,
       isMaximo: plan === "maximo" || isSuperAdmin,
       canHref: (href: string) => {
         if (isSuperAdmin) return true;
@@ -178,6 +208,6 @@ export function usePlano() {
         return hrefLiberado(href, plan);
       },
     }),
-    [plan, empresaId, ass, left, expired, blocked, locked, setupRequired, serverError, isSuperAdmin, serverLoaded]
+    [plan, empresaId, ass, left, expired, blocked, locked, setupRequired, serverError, isSuperAdmin, serverLoaded, selfServiceUnlocked, onboardingCompleted, navLayout, sidebarCompact]
   );
 }
