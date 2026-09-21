@@ -147,48 +147,124 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
   const admin = await getSupabaseAdmin();
   const empresaId = randomUUID();
 
+  const userMetadata = {
+    full_name: nome.toUpperCase(),
+    empresa_nome: empresaNome.toUpperCase(),
+    plano_solicitado: requestedPlan,
+    lexis_signup: "commercial",
+    termos_versao: String(input.termosVersao || "2026-09-21"),
+    termos_aceitos_em: String(input.termosAceitosEm || new Date().toISOString()),
+    consentimento_dados: true,
+    consentimento_ia_revisao_humana: true,
+  };
+
+  let authUserId = "";
+  let authWasCreated = false;
+  let authWasRecovered = false;
+
   const { data: createdAuth, error: authError } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    user_metadata: {
-      full_name: nome.toUpperCase(),
-      empresa_nome: empresaNome.toUpperCase(),
-      plano_solicitado: requestedPlan,
-      lexis_signup: "commercial",
-      termos_versao: String(input.termosVersao || "2026-09-21"),
-      termos_aceitos_em: String(input.termosAceitosEm || new Date().toISOString()),
-      consentimento_dados: true,
-      consentimento_ia_revisao_humana: true,
-    },
+    user_metadata: userMetadata,
     app_metadata: {
       lexis_commercial: true,
     },
   });
 
-  if (authError || !createdAuth.user) {
+  if (!authError && createdAuth.user) {
+    authUserId = createdAuth.user.id;
+    authWasCreated = true;
+  } else {
     const msg = String(authError?.message || "Falha ao criar usuário.");
-    if (/already.*registered|already.*exists|user.*exists/i.test(msg)) {
+    const alreadyExists = /already.*registered|already.*exists|user.*exists|email.*registered/i.test(msg);
+
+    if (!alreadyExists) {
+      return { ok: false as const, error: msg };
+    }
+
+    // Supabase Auth can contain a user created by an interrupted signup even when
+    // public.usuarios/public.empresas are still empty. Recover only that orphan.
+    const { data: listed, error: listError } = await admin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+
+    if (listError) {
+      return { ok: false as const, error: listError.message };
+    }
+
+    const existingAuth = listed.users.find(
+      (u) => String(u.email || "").trim().toLowerCase() === email
+    );
+
+    if (!existingAuth) {
       return {
         ok: false as const,
         code: "already_exists",
-        error: "Este e-mail já possui conta. Use a tela de login.",
+        error: "O e-mail já está registrado no Auth, mas não foi possível localizar a conta para recuperação.",
       };
     }
-    return { ok: false as const, error: msg };
+
+    const { data: existingProfile, error: profileLookupError } = await admin
+      .from("usuarios")
+      .select("id, empresa_id")
+      .eq("auth_user_id", existingAuth.id)
+      .maybeSingle();
+
+    if (profileLookupError) {
+      return { ok: false as const, error: profileLookupError.message };
+    }
+
+    if (existingProfile?.id) {
+      return {
+        ok: false as const,
+        code: "already_exists",
+        error: "Este e-mail já possui uma conta empresarial configurada. Use a tela de login.",
+      };
+    }
+
+    const { data: recoveredAuth, error: recoverError } =
+      await admin.auth.admin.updateUserById(existingAuth.id, {
+        password,
+        email_confirm: true,
+        user_metadata: {
+          ...(existingAuth.user_metadata || {}),
+          ...userMetadata,
+        },
+        app_metadata: {
+          ...(existingAuth.app_metadata || {}),
+          lexis_commercial: true,
+        },
+      });
+
+    if (recoverError || !recoveredAuth.user) {
+      return {
+        ok: false as const,
+        code: "orphan_recovery_failed",
+        error: recoverError?.message || "Não foi possível recuperar o usuário órfão do Auth.",
+      };
+    }
+
+    authUserId = recoveredAuth.user.id;
+    authWasRecovered = true;
   }
 
-  const authUserId = createdAuth.user.id;
   const effectivePlan = courtesy ? requestedPlan : "essencial";
   const billingStatus = courtesy ? "active" : "pending";
 
   const rollback = async () => {
     try {
-      await admin.from("empresas").delete().eq("id", empresaId);
+      await admin.from("usuarios").delete().eq("auth_user_id", authUserId);
     } catch {}
     try {
-      await admin.auth.admin.deleteUser(authUserId);
+      await admin.from("empresas").delete().eq("id", empresaId);
     } catch {}
+    if (authWasCreated) {
+      try {
+        await admin.auth.admin.deleteUser(authUserId);
+      } catch {}
+    }
   };
 
   const { error: empresaError } = await admin.from("empresas").insert({
@@ -289,9 +365,14 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
     await admin.from("commercial_audit_log").insert({
       empresa_id: empresaId,
       actor_user_id: authUserId,
-      event: courtesy ? "subscription.courtesy_token_activated" : "tenant.signup_created",
+      event: courtesy
+        ? "subscription.courtesy_token_activated"
+        : authWasRecovered
+          ? "tenant.orphan_auth_recovered"
+          : "tenant.signup_created",
       payload: {
         requested_plan: requestedPlan,
+        auth_recovered: authWasRecovered,
         effective_plan: effectivePlan,
         billing_status: billingStatus,
         terms_version: String(input.termosVersao || "2026-09-21"),
@@ -306,6 +387,7 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
     requestedPlan,
     courtesy,
     billingStatus,
+    recoveredAuth: authWasRecovered,
   };
 }
 
