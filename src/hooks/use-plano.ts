@@ -15,6 +15,7 @@ import {
   type AssinaturaStatus,
 } from "@/lib/planos-assinatura";
 import { getMinhaAssinaturaAction } from "@/app/actions/planos-actions";
+import { supabase } from "@/lib/supabase";
 import { invalidateCarteiraCache, clearScanProgress } from "@/lib/session-carteira-cache";
 import { saveNavLayout, type NavLayoutMode } from "@/lib/nav-layout";
 
@@ -25,6 +26,66 @@ const CLEAN_FALLBACK: AssinaturaStatus = {
   blockedReason: "validating_subscription",
   origem: "fallback",
 };
+
+type CommercialState = Awaited<ReturnType<typeof getMinhaAssinaturaAction>>;
+const PLAN_STATE_TTL_MS = 2 * 60 * 1000;
+const planStateCache = new Map<string, { at: number; value: CommercialState }>();
+const planStateInflight = new Map<string, Promise<CommercialState>>();
+
+async function fetchCommercialState(empresaId: string): Promise<CommercialState> {
+  const cached = planStateCache.get(empresaId);
+  if (cached && Date.now() - cached.at < PLAN_STATE_TTL_MS) return cached.value;
+
+  const inflight = planStateInflight.get(empresaId);
+  if (inflight) return inflight;
+
+  const request = (async (): Promise<CommercialState> => {
+    try {
+      // Leitura direta com RLS: evita uma Server Action + auth.getUser para cada
+      // componente que usa usePlano(). O Supabase continua isolando o tenant.
+      if (supabase) {
+        const { data, error } = await supabase
+          .from("empresas")
+          .select(
+            "id, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status, plan_self_service_unlocked, onboarding_completed, nav_layout, sidebar_compact"
+          )
+          .eq("id", empresaId)
+          .maybeSingle();
+
+        if (!error && data) {
+          const billingStatus = String(data.billing_status || "").trim().toLowerCase();
+          const blockedByBilling = ["past_due", "suspended", "canceled"].includes(billingStatus);
+          return {
+            ok: true,
+            empresaId,
+            plan: normalizePlanId(data.plano || "essencial"),
+            expiresAt: data.plano_expira_em ?? null,
+            blocked: !!data.plano_bloqueado || blockedByBilling,
+            blockedReason:
+              data.plano_bloqueio_motivo ??
+              (blockedByBilling ? billingStatus : null),
+            billingStatus: data.billing_status ?? null,
+            selfServiceUnlocked: !!data.plan_self_service_unlocked,
+            onboardingCompleted: !!data.onboarding_completed,
+            navLayout: data.nav_layout === "vertical" ? "vertical" : "dock",
+            sidebarCompact: !!data.sidebar_compact,
+            setupRequired: false,
+          } as CommercialState;
+        }
+      }
+
+      // Fallback raro: mantém compatibilidade se a leitura browser/RLS falhar.
+      return await getMinhaAssinaturaAction();
+    } finally {
+      planStateInflight.delete(empresaId);
+    }
+  })();
+
+  planStateInflight.set(empresaId, request);
+  const value = await request;
+  if (value?.ok) planStateCache.set(empresaId, { at: Date.now(), value });
+  return value;
+}
 
 export function usePlano() {
   const { user, loading: authLoading } = useAuth();
@@ -118,11 +179,9 @@ export function usePlano() {
     let live = true;
 
     const pull = async () => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-
       let res: Awaited<ReturnType<typeof getMinhaAssinaturaAction>> | null = null;
       try {
-        res = await getMinhaAssinaturaAction();
+        res = await fetchCommercialState(empresaId);
       } catch {
         res = null;
       }
@@ -189,21 +248,16 @@ export function usePlano() {
 
     void pull();
 
+    // Sem reconsulta a cada focus/tab. O middleware continua protegendo navegação,
+    // e uma revalidação leve a cada 10 min cobre mudanças comerciais em sessão longa.
     const id = window.setInterval(() => {
-      if (blockedRef.current || isExpired(getAssinatura(empresaId, CLEAN_FALLBACK).expiresAt)) {
-        void pull();
-      }
-    }, 60_000);
-
-    const onVis = () => {
-      if (document.visibilityState === "visible") void pull();
-    };
-    document.addEventListener("visibilitychange", onVis);
+      planStateCache.delete(empresaId);
+      void pull();
+    }, 10 * 60_000);
 
     return () => {
       live = false;
       window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVis);
     };
   }, [empresaId, profile, isSuperAdmin, user, authLoading]);
 
