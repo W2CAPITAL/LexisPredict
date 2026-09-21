@@ -87,11 +87,14 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
 
   const expiresAt = data.plano_expira_em || null;
   const expired = !!expiresAt && new Date(expiresAt).getTime() < Date.now();
-  const billingBlocked = ["past_due", "suspended", "canceled"].includes(String(data.billing_status || ""));
+  const billingStatus = String(data.billing_status || "").trim().toLowerCase();
+  const billingActive = billingStatus === "active" || billingStatus === "trialing";
+  const billingBlocked = ["past_due", "suspended", "canceled"].includes(billingStatus);
   const blocked = !!data.plano_bloqueado || billingBlocked;
+  const pending = !billingActive && !billingBlocked;
 
   return {
-    ok: !blocked && !expired,
+    ok: billingActive && !blocked && !expired,
     authenticated: true,
     empresaId,
     plan: normalizePlanId(data.plano || "essencial"),
@@ -100,7 +103,13 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
     expiresAt,
     role: ctx.cargo || null,
     isSuperAdmin: false,
-    reason: blocked ? "subscription_blocked" : expired ? "subscription_expired" : undefined,
+    reason: blocked
+      ? "subscription_blocked"
+      : expired
+        ? "subscription_expired"
+        : pending
+          ? "subscription_pending"
+          : undefined,
   };
 }
 
