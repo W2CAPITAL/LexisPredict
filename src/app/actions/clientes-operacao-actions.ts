@@ -79,7 +79,7 @@ export async function salvarClienteOperacaoAction(input: ClienteOperacaoInput) {
     }
 
     if (rowId) {
-      const { error } = await supabase.from('clientes_operacao').update(payload).eq('id', rowId).eq('empresa_id', empresa_id);
+      const { error } = await admin.from('clientes_operacao').update(payload).eq('id', rowId).eq('empresa_id', empresa_id);
       if (error) throw error;
       await registrarAuditoriaAction('edicao', [payload.protocolo || payload.cliente], { tabela: 'clientes_operacao', tipo: input.tipo });
       return { success: true as const, id: rowId, message: 'Análise atualizada no Supabase.' };
