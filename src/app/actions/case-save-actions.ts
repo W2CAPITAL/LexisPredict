@@ -6,7 +6,7 @@ import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
 import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
-import { canDeleteCase } from '@/lib/roles';
+import { canDeleteCase, resolveCaseScope } from '@/lib/roles';
 
 function iso(v: unknown): string | null {
   if (v === undefined || v === null) return null;
@@ -84,7 +84,7 @@ function canAccessExistingCase(
   row: Record<string, any> | null
 ): boolean {
   if (!row) return true;
-  if (ctx.isSuperAdmin || ctx.isSupervisor) return true;
+  if (resolveCaseScope(ctx as any) === 'company') return true;
   if (!ctx.auth_id) return false;
   const owner = String(row.created_by || row.dados?.created_by || '').trim();
   return !!owner && owner === String(ctx.auth_id);
