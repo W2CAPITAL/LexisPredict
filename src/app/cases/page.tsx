@@ -43,9 +43,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
+import { recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
 import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
-import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
+import { fetchCarteiraPageClient, mergeCarteiraPages } from '@/lib/carteira-fetch-client';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { saveOneCaseAction, saveManyCasesAction, deleteOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction } from '@/app/actions/case-save-actions';
@@ -243,6 +244,9 @@ function CasesContent() {
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [remoteHasMore, setRemoteHasMore] = useState(false);
+  const [loadingMoreRemote, setLoadingMoreRemote] = useState(false);
+  const REMOTE_PAGE_SIZE = 200;
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
@@ -287,23 +291,63 @@ function CasesContent() {
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '', cpf: '', email: '', estado_civil: '', emprego: '', nacionalidade: 'BRASILEIRA', parte_passiva: '', parte_passiva_cnpj: '', classe_acao: '' });
 
   const loadData = useCallback(async () => {
+    const empId = (profile as any)?.empresa_id || null;
+    if (!empId) return;
+
     setLoading(true);
     try {
-      try { invalidateCarteiraCache(); } catch { /* */ }
-      try {
-        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
-        invalidateCarteiraClientCache();
-      } catch { /* */ }
-      const empId = (profile as any)?.empresa_id || null;
       await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchRepoCases()) || [],
+        fetchNetwork: async () => {
+          const page = await fetchCarteiraPageClient({
+            empresaId: empId,
+            limit: REMOTE_PAGE_SIZE,
+            offset: 0,
+          });
+          setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
+          return page;
+        },
         empresaId: empId,
         scope: resolveCaseScope(profile as any),
-        onShow: (data) => { if (Array.isArray(data)) setCases(data); },
+        onShow: (data) => {
+          if (Array.isArray(data)) setCases(data);
+        },
         allowStaleKpiFallback: true,
       });
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [setCases, profile]);
+
+  const loadMoreFromSupabase = useCallback(async () => {
+    const empId = (profile as any)?.empresa_id || null;
+    if (!empId || loadingMoreRemote || !remoteHasMore) return;
+
+    setLoadingMoreRemote(true);
+    try {
+      const current = useAppStore.getState().cases as LegalCase[];
+      const page = await fetchCarteiraPageClient({
+        empresaId: empId,
+        limit: REMOTE_PAGE_SIZE,
+        offset: current.length,
+      });
+      const merged = mergeCarteiraPages(current, page);
+      setCases(merged);
+      writeCarteiraCache(
+        merged,
+        empId,
+        resolveCaseScope(profile as any)
+      );
+      setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
+    } catch (e: any) {
+      toast({
+        title: 'Não foi possível carregar mais processos',
+        description: e?.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingMoreRemote(false);
+    }
+  }, [profile, loadingMoreRemote, remoteHasMore, setCases, toast]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -630,7 +674,11 @@ function CasesContent() {
           action: pending.length ? <AtendimentoSyncRetry protocolos={pending}/> : undefined,
         });
         try {
-          const fresh = await fetchRepoCases();
+          const fresh = await fetchCarteiraPageClient({
+            empresaId: String((profile as any)?.empresa_id || ''),
+            limit: REMOTE_PAGE_SIZE,
+            offset: 0,
+          });
           if (Array.isArray(fresh) && fresh.length) {
             // mescla: não perde o retorno acabado de gravar se o fetch vier stale
             setCases(
@@ -1233,6 +1281,22 @@ function CasesContent() {
                     >
                       <ChevronUp size={14} className="mr-1" />
                       Mostrar menos
+                    </Button>
+                  )}
+                  {remoteHasMore && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={loadingMoreRemote}
+                      onClick={() => void loadMoreFromSupabase()}
+                      className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider border-sky-500/40 text-sky-700 dark:text-sky-300"
+                    >
+                      {loadingMoreRemote ? (
+                        <Loader2 size={14} className="mr-2 animate-spin" />
+                      ) : (
+                        <Download size={14} className="mr-2" />
+                      )}
+                      Carregar +{REMOTE_PAGE_SIZE} do Supabase
                     </Button>
                   )}
                 </div>
