@@ -28,8 +28,8 @@ describe("commercial role contract", () => {
     expect(resolveCaseScope("Operador")).toBe("mine");
     expect(resolveCaseScope("Administrador")).toBe("mine");
     expect(resolveCaseScope("Visualizador")).toBe("mine");
-    expect(resolveCaseScope("Supervisor")).toBe("company");
-    expect(resolveCaseScope("Superadmin")).toBe("company");
+    expect(resolveCaseScope("Supervisor")).toBe("empresa");
+    expect(resolveCaseScope("Superadmin")).toBe("empresa");
   });
 
   it("Administrador tem operação completa sem visão da empresa", () => {
