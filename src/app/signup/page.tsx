@@ -28,9 +28,11 @@ import {
 } from "@/lib/planos-precos";
 import { cn } from "@/lib/utils";
 import {
+  activateCourtesyPlanAction,
   createCommercialAccountAction,
   validateCourtesyTokenAction,
 } from "@/app/actions/commercial-signup-actions";
+import { provisionMinhaEmpresaAction } from "@/app/actions/tenant-provision-actions";
 import {
   ArrowLeft,
   ArrowRight,
@@ -149,12 +151,62 @@ export default function SignupPage() {
       });
 
       if (!result.ok) {
+        const alreadyExists = "code" in result && result.code === "already_exists";
+
+        if (alreadyExists) {
+          const { data: existingLogin, error: existingLoginError } =
+            await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: form.password,
+            });
+
+          if (!existingLoginError && existingLogin.user) {
+            const provision = await provisionMinhaEmpresaAction({
+              empresa: nomeEmpresa,
+              nome: nomeUser,
+              plan: form.plan,
+            });
+
+            if (!provision.ok) {
+              toast({
+                title: "Conta encontrada, mas a empresa não pôde ser configurada",
+                description: provision.error || "Falha ao preparar o tenant.",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            if (courtesyToken.trim()) {
+              const activation = await activateCourtesyPlanAction(
+                courtesyToken.trim(),
+                form.plan
+              );
+              if (!activation.ok) {
+                toast({
+                  title: "Empresa configurada, mas o token não foi aplicado",
+                  description: activation.error || "Revise o token em Configurações → Planos.",
+                  variant: "destructive",
+                });
+                return;
+              }
+            }
+
+            toast({
+              title: "Conta existente recuperada",
+              description: courtesyToken.trim()
+                ? "Empresa configurada e plano liberado pelo token."
+                : "Empresa configurada. Abrindo seu ambiente…",
+            });
+            window.setTimeout(() => window.location.replace("/"), 350);
+            return;
+          }
+        }
+
         toast({
-          title:
-            "code" in result && result.code === "already_exists"
-              ? "Conta já cadastrada"
-              : "Não foi possível concluir",
-          description: result.error || "Falha no cadastro.",
+          title: alreadyExists ? "Conta já cadastrada" : "Não foi possível concluir",
+          description: alreadyExists
+            ? "Este e-mail já existe. Use a senha correta ou entre pela tela de login."
+            : result.error || "Falha no cadastro.",
           variant: "destructive",
         });
         return;
