@@ -5,13 +5,12 @@ import { headers } from "next/headers";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
 import { normalizePlanId, type PlanId } from "@/lib/planos-pacotes";
 
-const DEFAULT_COURTESY_TOKEN_SHA256 =
-  "8d8365b5b095690c4dc361ee071fe6635858e087e250a6ee07ef96b0d4af0875";
-
 function courtesyTokenHash() {
-  return String(
-    process.env.LEXIS_COURTESY_TOKEN_SHA256 || DEFAULT_COURTESY_TOKEN_SHA256
-  ).trim().toLowerCase();
+  // Sem fallback embutido: cortesia só existe quando o proprietário
+  // configura explicitamente o hash no ambiente seguro do servidor.
+  return String(process.env.LEXIS_COURTESY_TOKEN_SHA256 || "")
+    .trim()
+    .toLowerCase();
 }
 
 function isValidCourtesyToken(raw?: string | null) {
@@ -276,7 +275,7 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
     plano_bloqueio_motivo: null,
     plano_expira_em: null,
     billing_status: billingStatus,
-    plan_self_service_unlocked: courtesy,
+    plan_self_service_unlocked: false,
     onboarding_completed: false,
     nav_layout: "dock",
     sidebar_compact: false,
@@ -417,7 +416,7 @@ export async function activateCourtesyPlanAction(token: string, plan: PlanId) {
       plano_bloqueio_motivo: null,
       plano_expira_em: null,
       billing_status: "active",
-      plan_self_service_unlocked: true,
+      plan_self_service_unlocked: false,
     })
     .eq("id", ctx.empresa_id)
     .select("id")
