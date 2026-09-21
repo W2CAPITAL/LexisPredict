@@ -20,7 +20,8 @@ import { saveNavLayout, type NavLayoutMode } from "@/lib/nav-layout";
 const CLEAN_FALLBACK: AssinaturaStatus = {
   plan: "essencial",
   expiresAt: null,
-  blocked: false,
+  blocked: true,
+  blockedReason: "validating_subscription",
   origem: "fallback",
 };
 
