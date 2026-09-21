@@ -313,18 +313,31 @@ export async function liberarEmpresaPlanoAction(
   }
 }
 
-export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anual") {
+export async function trocarMeuPlanoAction(
+  plan: PlanId,
+  ciclo?: "mensal" | "anual"
+) {
   const ctx = await getUserContext();
   const empresaId = String(ctx?.empresa_id || "").trim();
-  if (!empresaId) {
-    return { ok: false, setupRequired: true, error: "Cadastre ou vincule uma empresa antes de escolher o plano." };
+  if (!empresaId || !ctx?.auth_id) {
+    return {
+      ok: false as const,
+      setupRequired: true,
+      error: "Cadastre ou vincule uma empresa antes de escolher o plano.",
+    };
   }
 
   const pode =
-    !!(ctx as any)?.isSuperAdmin ||
-    !!(ctx as any)?.isAdministrador ||
-    !!(ctx as any)?.isSupervisor;
-  if (!pode) return { ok: false, error: "Só administrador da empresa solicita troca de plano." };
+    !!(ctx as any).isSuperAdmin ||
+    !!(ctx as any).isSupervisor ||
+    !!(ctx as any).isAdministrador;
+
+  if (!pode) {
+    return {
+      ok: false as const,
+      error: "Somente Administrador, Supervisor ou Superadmin pode solicitar mudança de plano.",
+    };
+  }
 
   const p = normalizePlanId(plan);
   const c = ciclo === "anual" ? "anual" : "mensal";
@@ -332,76 +345,75 @@ export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anu
   try {
     const { getSupabaseAdmin } = await import("@/lib/server-db");
     const admin = await getSupabaseAdmin();
-    if (!admin) return { ok: false, error: "Service role ausente." };
+
+    const now = new Date().toISOString();
 
     const { data: empresa, error: empresaError } = await admin
       .from("empresas")
-      .select("plan_self_service_unlocked, billing_status")
+      .select("id, plano, billing_status")
       .eq("id", empresaId)
       .maybeSingle();
 
-    if (empresaError) return { ok: false, error: empresaError.message };
+    if (empresaError) return { ok: false as const, error: empresaError.message };
+    if (!empresa) return { ok: false as const, error: "Empresa não encontrada." };
 
-    if (empresa?.plan_self_service_unlocked) {
-      const now = new Date().toISOString();
-
-      const { error: updateError } = await admin
-        .from("empresas")
-        .update({
-          plano: p,
-          plano_bloqueado: false,
-          plano_bloqueio_motivo: null,
-          billing_status: "active",
-        })
-        .eq("id", empresaId);
-
-      if (updateError) return { ok: false, error: updateError.message };
-
-      const { error: assinaturaError } = await admin.from("assinaturas").upsert(
+    const { error: requestError } = await admin
+      .from("solicitacoes_assinatura")
+      .upsert(
         {
           empresa_id: empresaId,
+          solicitado_por: ctx.auth_id,
           plano: p,
-          status: "active",
-          ciclo: "cortesia",
-          provider: "courtesy_token",
-          current_period_start: now,
-          current_period_end: null,
+          ciclo: c,
+          status: "pending",
+          observacao: "Solicitação de mudança criada pelo painel comercial",
+          decided_at: null,
+          decided_by: null,
           updated_at: now,
         },
-        { onConflict: "empresa_id" }
+        { onConflict: "empresa_id,status" }
       );
 
-      if (assinaturaError) return { ok: false, error: assinaturaError.message };
-
-      try {
-        await admin.from("commercial_audit_log").insert({
+    if (requestError) {
+      // Compatibilidade com schemas sem unique composto: insere uma nova solicitação.
+      const { error: insertError } = await admin
+        .from("solicitacoes_assinatura")
+        .insert({
           empresa_id: empresaId,
-          actor_user_id: ctx.auth_id,
-          event: "subscription.self_service_plan_changed",
-          payload: { plan: p, source: "courtesy_entitlement" },
+          solicitado_por: ctx.auth_id,
+          plano: p,
+          ciclo: c,
+          status: "pending",
+          observacao: "Solicitação de mudança criada pelo painel comercial",
         });
-      } catch {}
 
-      return {
-        ok: true,
-        pending: false,
-        selfService: true,
-        plan: p,
-        ciclo: "cortesia" as const,
-      };
+      if (insertError) {
+        return { ok: false as const, error: insertError.message };
+      }
     }
 
-    // Sem token, nenhuma troca é registrada ou executada pelo app.
-    // O proprietário precisa aprovar manualmente após contato via WhatsApp.
+    try {
+      await admin.from("commercial_audit_log").insert({
+        empresa_id: empresaId,
+        actor_user_id: ctx.auth_id,
+        event: "subscription.change_requested",
+        payload: {
+          current_plan: normalizePlanId((empresa as any).plano || "essencial"),
+          requested_plan: p,
+          cycle: c,
+          billing_status: (empresa as any).billing_status || null,
+        },
+      });
+    } catch {}
+
     return {
-      ok: true,
-      pending: false,
+      ok: true as const,
+      pending: true,
       requiresOwnerApproval: true,
-      ownerWhatsapp: "5513991199349",
       plan: p,
       ciclo: c,
     };
   } catch (e: any) {
-    return { ok: false, error: e?.message || "Falha." };
+    return { ok: false as const, error: e?.message || "Falha." };
   }
 }
