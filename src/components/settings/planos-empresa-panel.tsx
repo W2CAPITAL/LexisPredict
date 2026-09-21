@@ -16,7 +16,6 @@ import {
   economiaAnual,
 } from "@/lib/planos-precos";
 import { trocarMeuPlanoAction } from "@/app/actions/planos-actions";
-import { activateCourtesyPlanAction } from "@/app/actions/commercial-signup-actions";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight,
@@ -25,7 +24,6 @@ import {
   CheckCircle2,
   Clock3,
   Crown,
-  KeyRound,
   Loader2,
   MessageCircle,
   Minus,
@@ -91,16 +89,12 @@ export function PlanosEmpresaPanel() {
     daysLeft,
     setupRequired,
     serverError,
-    selfServiceUnlocked,
     billingStatus,
   } = usePlano();
   const { profile, isAdmin, isSuperAdmin } = useAdmin();
   const { toast } = useToast();
   const [ciclo, setCiclo] = useState<"mensal" | "anual">("mensal");
   const [busy, setBusy] = useState<PlanId | null>(null);
-  const [courtesyToken, setCourtesyToken] = useState("");
-  const [courtesyPlan, setCourtesyPlan] = useState<PlanId>(plan);
-  const [courtesyBusy, setCourtesyBusy] = useState(false);
 
   const currentPlan: PlanId = isSuperAdmin ? "maximo" : plan;
   const canChange = !!(isAdmin || isSuperAdmin) && !setupRequired;
@@ -143,40 +137,8 @@ export function PlanosEmpresaPanel() {
     if (!canChange) {
       toast({
         title: "Sem permissão",
-        description: "Só administrador da empresa pode solicitar mudança de plano.",
-      });
-      return;
-    }
-
-    if (!selfServiceUnlocked) {
-      const tipo = acao(id);
-      const pedido =
-        tipo === "upgrade"
-          ? "upgrade"
-          : tipo === "downgrade"
-            ? "downgrade"
-            : "alteração de plano";
-      const mensagem = [
-        "Olá, quero solicitar " + pedido + " do LexisPredict.",
-        "Plano atual: " + PLAN_LABEL[currentPlan] + ".",
-        "Plano desejado: " + PLAN_LABEL[id] + ".",
-        "Ciclo: " + ciclo + ".",
-        profile?.email ? "Conta: " + profile.email + "." : "",
-        "Por favor, confirme a alteração e as condições comerciais.",
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      window.open(
-        "https://wa.me/5513991199349?text=" + encodeURIComponent(mensagem),
-        "_blank",
-        "noopener,noreferrer"
-      );
-
-      toast({
-        title: "Solicitação pelo WhatsApp",
-        description:
-          "Sem token, upgrade/downgrade só pode ser autorizado pelo proprietário no WhatsApp (13) 99119-9349.",
+        description: "Somente Administrador, Supervisor ou Superadmin pode solicitar mudança de plano.",
+        variant: "destructive",
       });
       return;
     }
@@ -185,72 +147,51 @@ export function PlanosEmpresaPanel() {
     try {
       const r = await trocarMeuPlanoAction(id, ciclo);
       if (!r.ok) {
-        const needsSetup = "setupRequired" in r && Boolean(r.setupRequired);
         toast({
-          title: needsSetup ? "Configuração necessária" : "Não foi possível alterar",
-          description: r.error || "Falha ao alterar o plano.",
-          variant: needsSetup ? "default" : "destructive",
+          title: "Não foi possível solicitar",
+          description: r.error || "Falha ao registrar a solicitação.",
+          variant: "destructive",
         });
         return;
       }
 
-      const changedNow = "selfService" in r && Boolean(r.selfService);
-      if (!changedNow) {
-        toast({
-          title: "Autorização do proprietário necessária",
-          description:
-            "Sem token, a mudança deve ser solicitada pelo WhatsApp (13) 99119-9349.",
-        });
-        return;
-      }
+      const tipo = acao(id);
+      const pedido =
+        tipo === "upgrade"
+          ? "upgrade"
+          : tipo === "downgrade"
+            ? "downgrade"
+            : "alteração de plano";
+
+      const mensagem = [
+        "Olá, registrei uma solicitação de " + pedido + " no LexisPredict.",
+        "Plano atual: " + PLAN_LABEL[currentPlan] + ".",
+        "Plano desejado: " + PLAN_LABEL[id] + ".",
+        "Ciclo: " + ciclo + ".",
+        profile?.email ? "Conta: " + profile.email + "." : "",
+        "Empresa: " + (profile?.empresa_id || "tenant cadastrado") + ".",
+        "Aguardo confirmação comercial para ativação.",
+      ]
+        .filter(Boolean)
+        .join("\n");
 
       toast({
-        title: "Plano alterado",
+        title: "Solicitação registrada",
         description:
-          PLAN_LABEL[id] + " foi liberado imediatamente pela autorização de token.",
+          "O plano atual permanece ativo até a aprovação comercial. Nenhum dado será migrado.",
       });
-      window.setTimeout(() => window.location.reload(), 350);
+
+      window.open(
+        "https://wa.me/5513991199349?text=" + encodeURIComponent(mensagem),
+        "_blank",
+        "noopener,noreferrer"
+      );
     } finally {
       setBusy(null);
     }
   };
 
 
-  const onActivateCourtesy = async () => {
-    if (!canChange) {
-      toast({
-        title: "Sem permissão",
-        description: "Só administrador da empresa pode liberar plano por token.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!courtesyToken.trim()) {
-      toast({ title: "Informe o token de liberação." });
-      return;
-    }
-
-    setCourtesyBusy(true);
-    try {
-      const result = await activateCourtesyPlanAction(courtesyToken, courtesyPlan);
-      if (!result.ok) {
-        toast({
-          title: "Token não aceito",
-          description: result.error || "Não foi possível liberar o plano.",
-          variant: "destructive",
-        });
-        return;
-      }
-      toast({
-        title: "Plano liberado sem cobrança",
-        description: PLAN_LABEL[result.plan] + " foi ativado para esta empresa.",
-      });
-      setCourtesyToken("");
-      window.setTimeout(() => window.location.reload(), 450);
-    } finally {
-      setCourtesyBusy(false);
-    }
-  };
 
   return (
     <section aria-label="Planos e assinatura" className="space-y-6">
@@ -348,82 +289,12 @@ export function PlanosEmpresaPanel() {
         </div>
       </div>
 
-      {selfServiceUnlocked ? (
-        <div className="overflow-hidden rounded-[24px] border border-violet-500/25 bg-violet-500/5 shadow-sm">
-          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-700 dark:text-violet-300">
-                <KeyRound className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
-                  Token já utilizado
-                </p>
-                <h3 className="mt-1 text-lg font-black tracking-tight">Autogestão de planos liberada</h3>
-                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                  Esta empresa já validou um token de liberação. Administradores podem alternar livremente entre os planos sem novo pagamento ou novo token.
-                </p>
-              </div>
-            </div>
-            <Badge className="w-fit bg-violet-600 text-white">Acesso permanente</Badge>
-          </div>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-[24px] border border-violet-500/20 bg-card shadow-sm">
-          <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-700 dark:text-violet-300">
-                <KeyRound className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
-                  Liberação especial
-                </p>
-                <h3 className="mt-1 text-lg font-black tracking-tight">Ativar plano com token</h3>
-                <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
-                  Ao validar um token, além de liberar o plano sem cobrança, a empresa passa a poder alterar o plano livremente nas configurações.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid w-full gap-2 sm:grid-cols-[150px_minmax(220px,1fr)_auto] lg:max-w-2xl">
-              <select
-                value={courtesyPlan}
-                onChange={(e) => setCourtesyPlan(e.target.value as PlanId)}
-                disabled={!canChange || courtesyBusy}
-                className="h-10 rounded-xl border bg-background px-3 text-sm font-semibold outline-none ring-offset-background focus:ring-2 focus:ring-ring"
-                aria-label="Plano para liberação por token"
-              >
-                {PLAN_IDS.map((id) => (
-                  <option key={id} value={id}>{PLAN_LABEL[id]}</option>
-                ))}
-              </select>
-              <Input
-                type="password"
-                value={courtesyToken}
-                onChange={(e) => setCourtesyToken(e.target.value)}
-                placeholder="Token de liberação"
-                autoComplete="off"
-                disabled={!canChange || courtesyBusy}
-                className="h-10 rounded-xl"
-              />
-              <Button
-                type="button"
-                onClick={() => void onActivateCourtesy()}
-                disabled={!canChange || courtesyBusy || !courtesyToken.trim()}
-                className="h-10 bg-violet-600 font-semibold text-white hover:bg-violet-700"
-              >
-                {courtesyBusy ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <KeyRound className="mr-2 h-4 w-4" />
-                )}
-                Liberar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="rounded-[22px] border bg-muted/20 p-4 sm:p-5">
+        <p className="text-sm font-bold">Ativação comercial controlada</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          Alterações de plano são registradas como solicitação. O plano atual continua funcionando até a aprovação do pagamento ou liberação pelo Superadmin.
+        </p>
+      </div>
 
       <div className="grid items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-4">
         {PLAN_IDS.map((id) => {
