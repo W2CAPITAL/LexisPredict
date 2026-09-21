@@ -6,7 +6,7 @@ import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * Painel de Supervisão — visão geral da operação (não apenas a última semana).
- * Acessível a Supervisor / Administrador / Superadmin.
+ * Acessível somente a Supervisor / Superadmin.
  */
 
 import React, { useEffect, useState } from "react";
@@ -78,7 +78,7 @@ export default function SupervisaoPage() {
   const [procLimitByUser, setProcLimitByUser] = useState<Record<string, number>>({});
 
   const isSupervisor = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
-  const allowed = profile?.cargo === "Supervisor" || profile?.cargo === "Administrador" || checkIfSuperAdmin(profile);
+  const allowed = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
 
   const load = async () => {
     setLoading(true);
@@ -157,7 +157,7 @@ export default function SupervisaoPage() {
             <ShieldCheck className="mx-auto text-muted-foreground/40" size={48} />
             <h1 className="font-black uppercase tracking-tight text-lg">Acesso restrito</h1>
             <p className="text-[11px] font-bold uppercase text-muted-foreground tracking-widest">
-              O painel de supervisão está disponível para Supervisor, Administrador e Superadmin.
+              O painel de supervisão está disponível somente para Supervisor e Superadmin.
             </p>
           </div>
         </main>
