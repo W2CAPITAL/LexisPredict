@@ -440,17 +440,20 @@ export async function auditCaseCoreSystem(
     } catch { /* */ }
   }
 
-    if (!datajudOk && !djenOk) {
-    // Soft-fail: UI ainda abre; mostra toast. Nao derruba como 500.
+  if (!datajudOk && !djenOk) {
+    // Falha real de fonte. Nunca afirmar que "sem itens" = offline:
+    // datajudOk/djenOk ficam true quando a consulta respondeu validamente, mesmo vazia.
     return {
       success: true,
       offline: true,
-      error:
-        'OFFLINE: DataJud e DJEN sem retorno (rede, 403 geo, rate limit ou CNJ). Confira deploy em gru1 e tente de novo.',
-      case: target,
-      casePatch: {
-        djen_consultado_em: new Date().toISOString(),
+      error: 'Não foi possível consultar as fontes externas agora.',
+      message: 'DataJud e DJEN ficaram indisponíveis nesta tentativa. Nenhum dado existente foi alterado.',
+      sourceStatus: {
+        datajud: { requested: mode === 'datajud' || mode === 'both', ok: false },
+        djen: { requested: mode === 'djen' || mode === 'both', ok: false },
       },
+      case: target,
+      casePatch: {},
       movimentos: [],
       comunicacoes: [],
     };
@@ -875,6 +878,11 @@ export async function auditCaseCoreSystem(
     const updatedCase = processarCaso({ ...target, ...patch });
   return {
     success: true,
+    offline: false,
+    sourceStatus: {
+      datajud: { requested: mode === 'datajud' || mode === 'both', ok: datajudOk },
+      djen: { requested: mode === 'djen' || mode === 'both', ok: djenOk },
+    },
     casePatch: patch,
     case: updatedCase,
     movimentos: normalizeMovimentosList(movimentos).slice(0, 80),
@@ -933,45 +941,51 @@ export async function scanSingleCaseAction(
     }
   }
 
+  const mode = options.mode || 'both';
   const useFast = options.fast === true;
+
+  const requestedSourcesOk = (result: any) => {
+    const s = result?.sourceStatus || {};
+    const datajudOk =
+      mode === 'djen' ? true : s?.datajud?.ok === true;
+    const djenOk =
+      mode === 'datajud' ? true : s?.djen?.ok === true;
+    return datajudOk && djenOk;
+  };
+
   let res = await auditCaseCoreSystem(
     protocolo,
     safeEmpresaId,
-    options.mode || 'both',
+    mode,
     { fast: useFast, useClaudeAi: options.useClaudeAi === true }
   );
-  const mov = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
-  const com = Array.isArray((res as any)?.comunicacoes) ? (res as any).comunicacoes : [];
-  // 2ª tentativa sem fast se veio vazio (timeout/rate)
-  if ((!mov.length && !com.length) && useFast) {
+
+  // Retry only when a requested source actually failed.
+  // Empty successful result is a valid tribunal response and must not be retried as "offline".
+  if (!requestedSourcesOk(res) && useFast) {
     res = await auditCaseCoreSystem(
       protocolo,
       safeEmpresaId,
-      options.mode || 'both',
+      mode,
       { fast: false, useClaudeAi: options.useClaudeAi === true }
     );
   }
-  const mov2 = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
-  const com2 = Array.isArray((res as any)?.comunicacoes) ? (res as any).comunicacoes : [];
-  if (!mov2.length && !com2.length) {
-    return {
-      ...res,
-      success: true,
-      offline: true,
-      movimentos: [],
-      comunicacoes: [],
-      error:
-        (res as any)?.error ||
-        'Sem movimentos DataJud/DJEN. Possíveis causas: timeout, 403 geográfico, CNJ fora do índice ou rede. Tente novamente em alguns segundos.',
-      message:
-        (res as any)?.message ||
-        'Cronologia vazia — não significa ausência de andamento no tribunal.',
-    };
-  }
+
+  const movimentos = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
+  const comunicacoes = Array.isArray((res as any)?.comunicacoes) ? (res as any).comunicacoes : [];
+  const sourcesOk = requestedSourcesOk(res);
+
   return {
     ...res,
-    movimentos: mov2,
-    comunicacoes: com2,
+    success: true,
+    offline: !sourcesOk,
+    movimentos,
+    comunicacoes,
+    error: sourcesOk ? undefined : ((res as any)?.error || 'Fonte externa indisponível nesta tentativa.'),
+    message:
+      sourcesOk && !movimentos.length && !comunicacoes.length
+        ? 'Consulta concluída. Nenhuma movimentação/publicação foi localizada no período consultado.'
+        : (res as any)?.message,
   };
 }
 
