@@ -86,8 +86,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction,
+import { fetchRepoCases, syncRepoCases, registrarAtendimentoAction,
   registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
+import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';
@@ -329,7 +330,7 @@ export default function TarefasPage() {
     setLoading(true);
     setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(protocolo, { mode: 'both', fast: false });
+      const res = await scanInteractiveCase(protocolo, { mode: 'both', fast: false });
       appendScanLog({ cnj: protocolo, motor: 'datajud+djen', ok: (res as any)?.success !== false });
       const movimentos = Array.isArray((res as any).movimentos) ? (res as any).movimentos.slice(0, 80) : [];
       const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
