@@ -264,7 +264,17 @@ function CasesContent() {
   const [activeGroup, setActiveGroup] = useState<LegalCase | null>(null);
   const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
 
-  const { isOperador, profile, isSupervisor, isSuperAdmin } = useAdmin();
+  const {
+    isOperador,
+    profile,
+    isSupervisor,
+    isSuperAdmin,
+    canDelete,
+    canScan,
+    canExport,
+    canCreate,
+    canUseAllOperational,
+  } = useAdmin();
   const kpiCarteira = useMemo(
     () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
     [cases, profile]
@@ -1037,38 +1047,44 @@ function CasesContent() {
              <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Carteira do Gabinete</h1>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleExportXlsx}
-              disabled={exporting}
-              className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
-              Exportar XLSX
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCSV}
-              disabled={exporting}
-              className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary"
-            >
-              {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
-              CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRecalibratePrazos}
-              disabled={isRecalibrating || loading}
-              className="h-10 px-3 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-border/50 hover:bg-secondary"
-              title="Recalcular Vencido / É Hoje / Atenção a partir do próximo prazo"
-            >
-              {isRecalibrating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CalendarDays className="w-4 h-4 mr-1" />}
-              Recalibrar Prazos
-            </Button>
-            {isOperador && (
+            {canExport ? (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleExportXlsx}
+                  disabled={exporting}
+                  className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
+                  Exportar XLSX
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCSV}
+                  disabled={exporting}
+                  className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary"
+                >
+                  {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
+                  CSV
+                </Button>
+              </>
+            ) : null}
+            {canUseAllOperational ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRecalibratePrazos}
+                disabled={isRecalibrating || loading}
+                className="h-10 px-3 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-border/50 hover:bg-secondary"
+                title="Recalcular Vencido / É Hoje / Atenção a partir do próximo prazo"
+              >
+                {isRecalibrating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CalendarDays className="w-4 h-4 mr-1" />}
+                Recalibrar Prazos
+              </Button>
+            ) : null}
+            {canCreate && (
               <Button
                 size="sm"
                 onClick={handleNewCase}
@@ -1126,15 +1142,18 @@ function CasesContent() {
               <CaseGlassList
                 items={visibleItems}
                 isOperador={isOperador}
+                canEdit={isOperador}
+                canDelete={canDelete}
+                canScan={canScan}
                 selectable={canAssignOwner}
                 selected={selectedProtos}
                 onToggleSelect={toggleSelectProto}
                 onLogReturn={handleLogReturn}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onScan={handleSingleScan}
+                onScan={canScan ? handleSingleScan : undefined}
                 onSuggest={handleSuggestClick}
-                onDossie={handleDossieProcesso}
+                onDossie={canExport ? handleDossieProcesso : undefined}
               />
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 py-4 px-4 border-t border-border/30 bg-card/40">
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
