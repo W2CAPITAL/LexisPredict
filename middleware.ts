@@ -5,7 +5,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { hrefLiberado, normalizePlanId, pacotesDoPlano } from '@/lib/planos-pacotes'
-import { operatorRouteAllowed } from '@/lib/roles'
+import { operatorRouteAllowed, resolveRole } from '@/lib/roles'
 
 const ROLE_WEIGHT: Record<string, number> = {
   Superadmin: 100,
@@ -146,7 +146,7 @@ export async function middleware(request: NextRequest) {
     if (user?.id) {
       const { data: profile, error: profileError } = await client
         .from('usuarios')
-        .select('cargo, empresa_id')
+        .select('cargo, role, empresa_id')
         .eq('auth_user_id', user.id)
         .maybeSingle()
 
@@ -159,7 +159,7 @@ export async function middleware(request: NextRequest) {
         return redirect('/setup-empresa')
       }
 
-      const role = String(profile.cargo || '')
+      const role = resolveRole({ cargo: profile.cargo, role: (profile as any).role })
       const isSuperAdmin = role === 'Superadmin'
       if (isTenantSetupPage && isSuperAdmin) return redirect('/')
       const supervisorPath = starts(path, SUPERVISOR_ONLY)
