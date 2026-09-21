@@ -1035,10 +1035,15 @@ export async function applyBrowserDjenResultAction(
         .filter(Boolean)
         .slice(0, 60);
 
+      const targetAny = target as any;
+      const detalhesExecucao =
+        targetAny?.detalhes_execucao && typeof targetAny.detalhes_execucao === 'object'
+          ? targetAny.detalhes_execucao
+          : {};
       const classeCodigo =
-        target?.detalhes_execucao?.classeCodigo ??
-        target?.classeCodigo ??
-        target?.classe_codigo ??
+        detalhesExecucao?.classeCodigo ??
+        targetAny?.classeCodigo ??
+        targetAny?.classe_codigo ??
         null;
 
       const analise = analisarProcedenciaECumprimento(
@@ -1058,7 +1063,7 @@ export async function applyBrowserDjenResultAction(
       }
       patch.cumprimento_ativo = !!analise.cumprimento_ativo;
       patch.cumprimento_encerrado = !!analise.cumprimento_encerrado;
-      patch.status_executivo = analise.status_executivo || target.status_executivo || null;
+      patch.status_executivo = analise.status_executivo || (target as any).status_executivo || null;
       if (analise.data_transito_julgado) patch.data_transito_julgado = analise.data_transito_julgado;
     }
   } catch {
@@ -1108,13 +1113,30 @@ export async function scanSingleCaseAction(
   if (!canRunOperationalScanner(ctx as any)) {
     return {
       success: false,
+      offline: false,
       error: 'Scanner disponível para Administrador, Supervisor ou Superadmin.',
+      casePatch: {},
+      sourceStatus: {
+        datajud: { requested: options.mode !== 'djen', ok: false },
+        djen: { requested: options.mode !== 'datajud', ok: false },
+      },
       movimentos: [],
       comunicacoes: [],
     };
   }
   if (!empresa_id || !auth_id) {
-    return { success: false, error: '401', movimentos: [], comunicacoes: [] };
+    return {
+      success: false,
+      offline: false,
+      error: '401',
+      casePatch: {},
+      sourceStatus: {
+        datajud: { requested: options.mode !== 'djen', ok: false },
+        djen: { requested: options.mode !== 'datajud', ok: false },
+      },
+      movimentos: [],
+      comunicacoes: [],
+    };
   }
 
   const safeEmpresaId = String(empresa_id);
@@ -1140,7 +1162,13 @@ export async function scanSingleCaseAction(
     if (!owner || owner !== String(auth_id)) {
       return {
         success: false,
+        offline: false,
         error: 'Você só pode escanear processos da sua própria carteira.',
+        casePatch: {},
+        sourceStatus: {
+          datajud: { requested: options.mode !== 'djen', ok: false },
+          djen: { requested: options.mode !== 'datajud', ok: false },
+        },
         movimentos: [],
         comunicacoes: [],
       };
