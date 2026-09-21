@@ -893,6 +893,212 @@ export async function auditCaseCoreSystem(
   };
 }
 
+export async function applyBrowserDjenResultAction(
+  protocolo: string,
+  payload: { items?: any[]; count?: number }
+) {
+  const ctx = await getUserContext();
+  const { empresa_id, auth_id } = ctx;
+
+  if (!canRunOperationalScanner(ctx as any)) {
+    return {
+      success: false as const,
+      error: 'Scanner disponível para Administrador, Supervisor ou Superadmin.',
+      comunicacoes: [] as any[],
+    };
+  }
+  if (!empresa_id || !auth_id) {
+    return { success: false as const, error: 'Sessão expirada.', comunicacoes: [] as any[] };
+  }
+
+  const digits = String(protocolo || '').replace(/\D/g, '');
+  if (digits.length !== 20) {
+    return { success: false as const, error: 'CNJ inválido.', comunicacoes: [] as any[] };
+  }
+
+  const masked =
+    `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+  const variants = Array.from(new Set([String(protocolo || '').trim(), digits, masked])).filter(Boolean);
+
+  const admin = await getSupabaseAdmin();
+  const { data: rows, error: readError } = await admin
+    .from('processos')
+    .select('*')
+    .eq('empresa_id', empresa_id)
+    .in('protocolo_ref', variants)
+    .limit(1);
+
+  if (readError) {
+    return { success: false as const, error: readError.message, comunicacoes: [] as any[] };
+  }
+
+  const row = rows?.[0];
+  if (!row) {
+    return { success: false as const, error: 'Processo não encontrado na carteira.', comunicacoes: [] as any[] };
+  }
+
+  if (resolveCaseScope(ctx as any) === 'mine' && String(row.created_by || '') !== String(auth_id)) {
+    return {
+      success: false as const,
+      error: 'Você só pode escanear processos da sua própria carteira.',
+      comunicacoes: [] as any[],
+    };
+  }
+
+  // Nunca confiar em payload arbitrário do navegador: limita tamanho e exige
+  // que cada publicação pertença ao mesmo CNJ consultado.
+  const comunicacoes = (Array.isArray(payload?.items) ? payload.items : [])
+    .slice(0, 60)
+    .map((item: any) => {
+      const itemDigits = String(item?.numeroProcesso || item?.numero_processo || '').replace(/\D/g, '');
+      if (itemDigits !== digits) return null;
+
+      const texto = String(
+        item?.texto ||
+        item?.conteudo ||
+        item?.textoPublicacao ||
+        item?.descricao ||
+        item?.inteiroTeor ||
+        ''
+      )
+        .replace(/\u0000/g, '')
+        .slice(0, 30000);
+
+      return {
+        id: item?.id != null ? String(item.id).slice(0, 160) : '',
+        hash: item?.hash ? String(item.hash).slice(0, 300) : undefined,
+        data_disponibilizacao: item?.data_disponibilizacao
+          ? String(item.data_disponibilizacao).slice(0, 40)
+          : null,
+        siglaTribunal: item?.siglaTribunal ? String(item.siglaTribunal).slice(0, 30) : null,
+        tipoComunicacao: item?.tipoComunicacao ? String(item.tipoComunicacao).slice(0, 120) : null,
+        nomeOrgao: item?.nomeOrgao ? String(item.nomeOrgao).slice(0, 300) : null,
+        texto,
+        numero_processo: digits,
+        meio: item?.meio ? String(item.meio).slice(0, 20) : null,
+        link: item?.link ? String(item.link).slice(0, 1200) : null,
+        tipoDocumento: item?.tipoDocumento ? String(item.tipoDocumento).slice(0, 120) : null,
+        nomeClasse: item?.nomeClasse ? String(item.nomeClasse).slice(0, 200) : null,
+      };
+    })
+    .filter(Boolean) as any[];
+
+  const target = processarCaso({
+    ...(row.dados && typeof row.dados === 'object' ? row.dados : {}),
+    id: String(row.id),
+    protocolo: row.protocolo_ref,
+    ultimoRetorno: row.ultimo_retorno,
+    djen_nova_comunicacao: row.djen_nova_comunicacao,
+    djen_ultima_data: row.djen_ultima_data,
+    djen_ultimo_resumo: row.djen_ultimo_resumo,
+    djen_ultimo_link: row.djen_ultimo_link,
+    djen_count: row.djen_count,
+  });
+
+  const djenSync = detectarNovaComunicacaoDjen(target.ultimoRetorno, comunicacoes);
+  const dataDjenRef = djenSync.dataUltima || target.djen_ultima_data || null;
+  const resumoKw =
+    djenSync.resumo ||
+    (comunicacoes[0]?.texto ? summarizeDjenKeywords(comunicacoes[0].texto) : null) ||
+    target.djen_ultimo_resumo ||
+    null;
+
+  const patch: Record<string, any> = {
+    djen_nova_comunicacao:
+      djenSync.alerta === true ||
+      (!!target.djen_nova_comunicacao &&
+        movimentoAindaPosRetorno(dataDjenRef, target.ultimoRetorno)),
+    djen_ultima_data: djenSync.dataUltima || target.djen_ultima_data || null,
+    djen_ultimo_resumo: resumoKw,
+    djen_ultimo_link:
+      djenSync.link ||
+      resolveDjenPublicacaoLink(comunicacoes[0], digits) ||
+      target.djen_ultimo_link ||
+      null,
+    djen_count: Number.isFinite(Number(payload?.count))
+      ? Number(payload.count)
+      : comunicacoes.length,
+    djen_consultado_em: new Date().toISOString(),
+  };
+
+  if (djenSync.alerta && comunicacoes[0]?.texto) {
+    const classified = classifyEventFromText(comunicacoes[0].texto);
+    patch.evento_tipo = classified.tipo;
+    patch.evento_resumo = resumoKw || classified.label;
+  }
+
+  // Reaproveita o motor executivo com o teor oficial que veio do navegador.
+  try {
+    if (comunicacoes.length) {
+      const djenTextos = comunicacoes
+        .map((item: any) => String(item.texto || '').trim())
+        .filter(Boolean)
+        .slice(0, 60);
+
+      const classeCodigo =
+        target?.detalhes_execucao?.classeCodigo ??
+        target?.classeCodigo ??
+        target?.classe_codigo ??
+        null;
+
+      const analise = analisarProcedenciaECumprimento(
+        [],
+        classeCodigo != null ? Number(classeCodigo) : null,
+        target.datajud_ultimo_nome || null,
+        djenTextos
+      );
+
+      if (analise.is_procedente) patch.is_procedente = true;
+      if (analise.procedente_motivo) patch.procedente_motivo = analise.procedente_motivo;
+      if (analise.em_cumprimento_sentenca || analise.cumprimento_encerrado) {
+        patch.em_cumprimento_sentenca = true;
+        patch.cumprimento_pendente_necessario = false;
+      } else if (analise.cumprimento_pendente_necessario) {
+        patch.cumprimento_pendente_necessario = true;
+      }
+      patch.cumprimento_ativo = !!analise.cumprimento_ativo;
+      patch.cumprimento_encerrado = !!analise.cumprimento_encerrado;
+      patch.status_executivo = analise.status_executivo || target.status_executivo || null;
+      if (analise.data_transito_julgado) patch.data_transito_julgado = analise.data_transito_julgado;
+    }
+  } catch {
+    // A classificação é auxiliar; nunca invalida uma consulta DJEN que respondeu.
+  }
+
+  const persisted = await updateCaseDataJudSystem(String(row.id), patch);
+  if (!persisted?.success) {
+    return {
+      success: false as const,
+      error: persisted?.error || 'Não foi possível salvar o resultado DJEN.',
+      comunicacoes,
+    };
+  }
+
+  try {
+    await logScanMetric({
+      empresaId: String(empresa_id),
+      source: 'djen',
+      success: true,
+      protocolo: digits,
+    });
+  } catch {}
+
+  return {
+    success: true as const,
+    offline: false,
+    sourceStatus: {
+      djen: { requested: true, ok: true, via: 'browser' },
+    },
+    casePatch: patch,
+    case: processarCaso({ ...target, ...patch }),
+    comunicacoes,
+    count: Number.isFinite(Number(payload?.count)) ? Number(payload.count) : comunicacoes.length,
+    message: comunicacoes.length
+      ? `${comunicacoes.length} publicação(ões) DJEN localizada(s).`
+      : 'Consulta DJEN concluída. Nenhuma publicação foi localizada no período.',
+  };
+}
+
 export async function scanSingleCaseAction(
   protocolo: string,
   options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean } = {}
