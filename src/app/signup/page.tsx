@@ -27,7 +27,10 @@ import {
   economiaAnual,
 } from "@/lib/planos-precos";
 import { cn } from "@/lib/utils";
-import { provisionMinhaEmpresaAction } from "@/app/actions/tenant-provision-actions";
+import {
+  createCommercialAccountAction,
+  validateCourtesyTokenAction,
+} from "@/app/actions/commercial-signup-actions";
 import {
   ArrowLeft,
   ArrowRight,
@@ -39,6 +42,7 @@ import {
   Lock,
   Mail,
   MessageCircle,
+  KeyRound,
   ShieldCheck,
   Sparkles,
   User,
@@ -66,6 +70,9 @@ export default function SignupPage() {
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [donePending, setDonePending] = useState(false);
+  const [courtesyToken, setCourtesyToken] = useState("");
+  const [courtesyValid, setCourtesyValid] = useState(false);
+  const [validatingToken, setValidatingToken] = useState(false);
   const lock = useRef(false);
   const { toast } = useToast();
   const logo = PlaceHolderImages.find((i) => i.id === "app-logo");
@@ -95,6 +102,30 @@ export default function SignupPage() {
 
   const back = () => setStep((s) => Math.max(1, Number(s) - 1) as Step);
 
+  const validateCourtesyToken = async () => {
+    const token = courtesyToken.trim();
+    if (!token) {
+      setCourtesyValid(false);
+      toast({ title: "Informe o token de liberação." });
+      return;
+    }
+
+    setValidatingToken(true);
+    try {
+      const result = await validateCourtesyTokenAction(token);
+      setCourtesyValid(!!result.valid);
+      toast({
+        title: result.valid ? "Token válido" : "Token inválido",
+        description: result.valid
+          ? "O plano selecionado será liberado sem cobrança ao concluir o cadastro."
+          : "Confira o token e tente novamente.",
+        variant: result.valid ? "default" : "destructive",
+      });
+    } finally {
+      setValidatingToken(false);
+    }
+  };
+
   const finish = async () => {
     if (lock.current) return;
     lock.current = true;
@@ -104,47 +135,54 @@ export default function SignupPage() {
       const cleanEmail = form.email.trim().toLowerCase();
       const nomeEmpresa = form.empresa.trim().toUpperCase();
       const nomeUser = (form.nome.trim() || cleanEmail.split("@")[0]).toUpperCase();
+      const acceptedAt = new Date().toISOString();
 
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const result = await createCommercialAccountAction({
+        empresa: nomeEmpresa,
         email: cleanEmail,
         password: form.password,
-        options: {
-          data: {
-            full_name: nomeUser,
-            empresa_nome: nomeEmpresa,
-            plano_solicitado: form.plan,
-            lexis_signup: "commercial",
-            termos_versao: "2026-09-21",
-            termos_aceitos_em: new Date().toISOString(),
-            consentimento_dados: true,
-            consentimento_ia_revisao_humana: true,
-          },
-        },
+        nome: nomeUser,
+        plan: form.plan,
+        courtesyToken: courtesyToken.trim() || undefined,
+        termosVersao: "2026-09-21",
+        termosAceitosEm: acceptedAt,
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("Falha ao criar usuário.");
+      if (!result.ok) {
+        toast({
+          title:
+            "code" in result && result.code === "already_exists"
+              ? "Conta já cadastrada"
+              : "Não foi possível concluir",
+          description: result.error || "Falha no cadastro.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      // Se o Supabase já devolveu sessão, provisiona o tenant imediatamente.
-      // Se houver confirmação de e-mail e não existir sessão ainda, o mesmo
-      // provisionamento é oferecido no primeiro login em /setup-empresa.
-      if (authData.session) {
-        try {
-          await provisionMinhaEmpresaAction({
-            empresa: nomeEmpresa,
-            nome: nomeUser,
-            plan: form.plan,
+      if (result.courtesy) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: form.password,
+        });
+
+        if (!signInError) {
+          toast({
+            title: "Plano liberado por token",
+            description: PLAN_LABEL[form.plan] + " ativado sem cobrança. Abrindo seu ambiente…",
           });
-        } catch {
-          /* fallback seguro: primeiro login conclui o tenant */
+          window.setTimeout(() => window.location.replace("/"), 350);
+          return;
         }
       }
 
       setDonePending(true);
       setStep(6);
       toast({
-        title: "Cadastro criado",
-        description: "Agora o ambiente pode concluir o vínculo da empresa e a ativação do plano.",
+        title: result.courtesy ? "Plano liberado" : "Cadastro criado",
+        description: result.courtesy
+          ? "O token foi aceito e o plano está ativo."
+          : "Entre em contato com o comercial para liberar o plano escolhido.",
       });
     } catch (e: any) {
       toast({
@@ -166,7 +204,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-background p-3 sm:p-5">
       <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] overflow-hidden rounded-[30px] border bg-card shadow-2xl lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[.78fr_1.22fr]">
-        <aside className="relative hidden overflow-hidden border-r bg-[#07111f] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-12">
+        <aside className="relative hidden overflow-hidden border-r bg-[#07111f] p-10 !text-white lg:flex lg:flex-col lg:justify-between xl:p-12">
           <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-cyan-400/15 blur-[120px]" />
           <div className="absolute -bottom-32 right-0 h-[26rem] w-[26rem] rounded-full bg-violet-500/20 blur-[130px]" />
 
@@ -180,7 +218,7 @@ export default function SignupPage() {
                 )}
               </div>
               <div>
-                <p className="font-black">LexisPredict</p>
+                <p className="font-black !text-white">LexisPredict</p>
                 <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">Commercial SaaS</p>
               </div>
             </div>
@@ -190,10 +228,10 @@ export default function SignupPage() {
                 <Sparkles className="h-3.5 w-3.5" />
                 Nova empresa
               </span>
-              <h1 className="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.04em]">
+              <h1 className="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.04em] !text-white">
                 Configure seu ambiente em poucos passos.
               </h1>
-              <p className="mt-5 text-sm leading-relaxed text-white/55">
+              <p className="mt-5 text-sm leading-relaxed !text-slate-200">
                 Crie a conta, identifique a empresa e escolha o pacote que melhor encaixa na operação.
               </p>
 
@@ -203,14 +241,14 @@ export default function SignupPage() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-400/10">
                       <Check className="h-4 w-4 text-emerald-300" />
                     </div>
-                    <span className="text-sm font-medium text-white/80">{item}</span>
+                    <span className="text-sm font-medium !text-white">{item}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          <div className="relative border-t border-white/10 pt-6 text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">
+          <div className="relative border-t border-white/10 pt-6 text-[10px] font-bold uppercase tracking-[0.16em] !text-slate-300">
             Tenant isolado · ativação controlada · dados preservados
           </div>
         </aside>
@@ -429,7 +467,10 @@ export default function SignupPage() {
                         <button
                           key={id}
                           type="button"
-                          onClick={() => set("plan", id)}
+                          onClick={() => {
+                            set("plan", id);
+                            setCourtesyValid(false);
+                          }}
                           aria-pressed={selected}
                           className={cn(
                             "relative overflow-hidden rounded-2xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-lg",
@@ -485,26 +526,86 @@ export default function SignupPage() {
                         <p className="font-black">{PLAN_LABEL[form.plan]}</p>
                         <p className="text-xs text-muted-foreground">{selectedPlan.tagline}</p>
                       </div>
-                      <p className="text-lg font-black">{formatBRL(selectedPlan.valorMensal)}<span className="text-[10px] font-normal text-muted-foreground">/mês</span></p>
+                      <p className="text-lg font-black">
+                        {formatBRL(selectedPlan.valorMensal)}
+                        <span className="text-[10px] font-normal text-muted-foreground">/mês</span>
+                      </p>
                     </div>
+                  </div>
 
+                  <div
+                    className={cn(
+                      "rounded-2xl border p-4",
+                      courtesyValid
+                        ? "border-violet-500/30 bg-violet-500/5"
+                        : "border-border bg-background/40"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                        <KeyRound className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-black">Possui token de liberação?</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          Um token válido libera o plano selecionado sem cobrança e sem precisar aguardar confirmação comercial.
+                        </p>
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            type="password"
+                            value={courtesyToken}
+                            onChange={(e) => {
+                              setCourtesyToken(e.target.value);
+                              setCourtesyValid(false);
+                            }}
+                            placeholder="Digite o token"
+                            autoComplete="off"
+                            className="h-10 flex-1 rounded-xl"
+                          />
+                          <Button
+                            type="button"
+                            variant={courtesyValid ? "default" : "outline"}
+                            disabled={validatingToken || !courtesyToken.trim()}
+                            onClick={() => void validateCourtesyToken()}
+                            className={cn(
+                              "h-10 shrink-0",
+                              courtesyValid && "bg-violet-600 text-white hover:bg-violet-700"
+                            )}
+                          >
+                            {validatingToken ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <KeyRound className="mr-2 h-4 w-4" />
+                            )}
+                            {courtesyValid ? "Token validado" : "Validar token"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-sm font-black">Solicitar liberação do plano</p>
+                        <p className="text-sm font-black">
+                          {courtesyValid ? "Liberação automática disponível" : "Solicitar liberação do plano"}
+                        </p>
                         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          Após escolher o plano, fale com o comercial pelo WhatsApp <strong className="text-foreground">(13) 99119-9349</strong> para confirmar a ativação.
+                          {courtesyValid
+                            ? "Conclua o cadastro para ativar o plano selecionado imediatamente, sem cobrança."
+                            : "Ou fale com o comercial pelo WhatsApp (13) 99119-9349 para confirmar a ativação."}
                         </p>
                       </div>
-                      <Button asChild className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700">
-                        <a href={commercialWhatsapp} target="_blank" rel="noopener noreferrer">
-                          <MessageCircle className="mr-2 h-4 w-4" />
-                          Solicitar liberação
-                        </a>
-                      </Button>
+                      {!courtesyValid ? (
+                        <Button asChild className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700">
+                          <a href={commercialWhatsapp} target="_blank" rel="noopener noreferrer">
+                            <MessageCircle className="mr-2 h-4 w-4" />
+                            Solicitar liberação
+                          </a>
+                        </Button>
+                      ) : null}
                     </div>
-                  </div>                  </div>
+                  </div>
                 </div>
               )}
 
