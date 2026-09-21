@@ -144,15 +144,6 @@ export default function SignupPage() {
             }
 
             toast({
-                  title: "Empresa configurada, mas o token não foi aplicado",
-                  description: activation.error || "Revise o token em Configurações → Planos.",
-                  variant: "destructive",
-                });
-                return;
-              }
-            }
-
-            toast({
               title: "Conta existente recuperada",
               description: "Empresa configurada. A ativação do plano permanece pendente de confirmação comercial.",
             });
