@@ -92,8 +92,8 @@ import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';
-import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
-import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
+import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { fetchCarteiraAllClient, invalidateCarteiraClientCache } from '@/lib/carteira-fetch-client';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -982,7 +982,13 @@ const handleSaveAttendance = async () => {
                   <Button
                     type="button"
                     className="h-9 text-[10px] font-black uppercase"
-                    onClick={() => { try { invalidateCarteiraCache(); } catch { /* */ } loadData(); }}
+                    onClick={() => {
+                      try {
+                        invalidateCarteiraCache();
+                        invalidateCarteiraClientCache();
+                      } catch { /* cache best effort */ }
+                      void loadData();
+                    }}
                   >
                     Recarregar carteira
                   </Button>
