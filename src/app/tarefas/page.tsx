@@ -117,7 +117,7 @@ import {  isCasoEncerrado, isBaixaTribunal  } from '@/lib/status-encerrado';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { AiDraftPreview } from '@/components/ai/ai-draft-preview';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
-import { useAuth } from '@/components/auth/auth-provider';
+import { resolveCaseScope } from '@/lib/roles';
 import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst } from '@/lib/djen';
 // djenTextsRecentFirst usado no rascunho;
 import { buildUnifiedTimeline } from '@/lib/timeline-normalize';
@@ -146,7 +146,7 @@ interface TaskGroup {
 }
 
 export default function TarefasPage() {
-  const { canCopy, canExport, canScan, isViewer } = useAdmin();
+  const { canCopy, canExport, canScan, isViewer, profile } = useAdmin();
   const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
   const LIST_PAGE_SIZE = 80;
@@ -185,7 +185,6 @@ export default function TarefasPage() {
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
   const [selectedMotor, setSelectedMotor] = useState<string>('omni');
 
-  const { profile } = useAuth();
   const kpiCarteira = useMemo(
     () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
     [cases, profile]
@@ -275,7 +274,7 @@ export default function TarefasPage() {
       const _pack = await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases(), { force: true })) || [],
         empresaId: empId,
-        scope: "mine",
+        scope: resolveCaseScope(profile as any),
         onShow: (data) => { if (Array.isArray(data)) startTransition(() => setCases(data)); },
         allowStaleKpiFallback: true,
       });
