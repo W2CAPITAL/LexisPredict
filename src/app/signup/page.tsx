@@ -114,6 +114,10 @@ export default function SignupPage() {
             empresa_nome: nomeEmpresa,
             plano_solicitado: form.plan,
             lexis_signup: "commercial",
+            termos_versao: "2026-09-21",
+            termos_aceitos_em: new Date().toISOString(),
+            consentimento_dados: true,
+            consentimento_ia_revisao_humana: true,
           },
         },
       });
