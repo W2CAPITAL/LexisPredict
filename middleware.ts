@@ -5,6 +5,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { hrefLiberado, normalizePlanId, pacotesDoPlano } from '@/lib/planos-pacotes'
+import { operatorRouteAllowed } from '@/lib/roles'
 
 const ROLE_WEIGHT: Record<string, number> = {
   Superadmin: 100,
@@ -14,7 +15,7 @@ const ROLE_WEIGHT: Record<string, number> = {
   Visualizador: 20,
 }
 
-const ADMIN_ONLY = ['/supervisao', '/auditoria', '/team']
+const SUPERVISOR_ONLY = ['/supervisao', '/auditoria', '/team']
 const SUPERADMIN_ONLY = ['/security', '/superadmin', '/ops']
 
 const PUBLIC_API = [
@@ -161,11 +162,22 @@ export async function middleware(request: NextRequest) {
       const role = String(profile.cargo || '')
       const isSuperAdmin = role === 'Superadmin'
       if (isTenantSetupPage && isSuperAdmin) return redirect('/')
-      const adminPath = starts(path, ADMIN_ONLY)
+      const supervisorPath = starts(path, SUPERVISOR_ONLY)
       const superPath = starts(path, SUPERADMIN_ONLY)
+      const roleWeight = ROLE_WEIGHT[role] || 0
 
-      if ((superPath && !isSuperAdmin) || (adminPath && (ROLE_WEIGHT[role] || 0) < 60)) {
+      if ((superPath && !isSuperAdmin) || (supervisorPath && roleWeight < ROLE_WEIGHT.Supervisor)) {
         return isApi ? json({ ok: false, error: 'forbidden' }, 403) : redirect('/')
+      }
+
+      // Operador usa somente o conjunto operacional essencial.
+      if (role === 'Operador') {
+        if (!isApi && !operatorRouteAllowed(path)) {
+          return redirect('/cases')
+        }
+        if (isApi && (starts(path, OPERATIONAL_API) || starts(path, FINANCIAL_API))) {
+          return json({ ok: false, error: 'role_required', required: 'Administrador' }, 403)
+        }
       }
 
       if (!isSuperAdmin) {
