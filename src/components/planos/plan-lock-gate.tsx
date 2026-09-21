@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePlano } from "@/hooks/use-plano";
+import { useAuth } from "@/components/auth/auth-provider";
 import { useAdmin } from "@/hooks/use-admin";
 import {
   PROPRIETARIO_LABEL,
@@ -33,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { invalidateCarteiraCache, clearScanProgress } from "@/lib/session-carteira-cache";
 
 export function PlanLockGate({ children }: { children: React.ReactNode }) {
+  const { user, profile, loading: authLoading } = useAuth();
   const { isSuperAdmin } = useAdmin();
   const {
     isLocked,
@@ -66,10 +68,49 @@ export function PlanLockGate({ children }: { children: React.ReactNode }) {
     }
   }, [empresaId, isSuperAdmin, isLocked, setupRequired]);
 
-  if (isSuperAdmin) return <>{children}</>;
+  // Login, cadastro, termos e rotas de resolução de acesso nunca podem
+  // ser bloqueados por assinatura.
   if (rotaPermitidaSemPlano(pathname)) return <>{children}</>;
 
-  if (!serverLoaded) {
+  // O gate comercial só existe depois que o Supabase confirmou uma sessão.
+  // Sem login, deixa o SessionGuard cuidar do redirecionamento das rotas privadas.
+  if (authLoading) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background p-6">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border bg-card shadow-sm">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+        <div className="space-y-1 text-center">
+          <p className="text-sm font-semibold">Verificando sessão</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Validando seu acesso com segurança.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return <>{children}</>;
+  if (isSuperAdmin) return <>{children}</>;
+
+  // Usuário autenticado sem perfil/empresa é onboarding incompleto, não assinatura suspensa.
+  if (!profile || !empresaId || setupRequired) {
+    if (!serverLoaded && profile) {
+      return (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background p-6">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border bg-card shadow-sm">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+          <div className="space-y-1 text-center">
+            <p className="text-sm font-semibold">Preparando seu ambiente</p>
+            <p className="max-w-sm text-xs text-muted-foreground">
+              Estamos carregando empresa, perfil e permissões.
+            </p>
+          </div>
+        </div>
+      );
+    }
+  } else if (!serverLoaded) {
     return (
       <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background p-6">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl border bg-card shadow-sm">
@@ -164,9 +205,12 @@ export function PlanLockGate({ children }: { children: React.ReactNode }) {
       : "Olá, meu plano LexisPredict expirou e preciso renovar a assinatura."
   );
 
+  const rawMotivo = assinatura?.blockedReason || "";
   const motivo =
-    assinatura?.blockedReason ||
-    (isBlocked ? "assinatura suspensa no servidor" : "prazo do plano esgotado");
+    rawMotivo === "validating_subscription"
+      ? "assinatura ainda não validada pelo servidor"
+      : rawMotivo ||
+        (isBlocked ? "assinatura suspensa no servidor" : "prazo do plano esgotado");
 
   const verificarPagamento = async () => {
     if (!empresaId) return;
