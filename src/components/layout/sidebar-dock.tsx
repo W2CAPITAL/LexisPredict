@@ -92,7 +92,11 @@ export function SidebarDock() {
   }, [role, isSupervisor, isSuperAdmin, plan, query]);
 
   const main = filterNavByPlan(
-    primary.map(([label, href, icon]) => ({ label, href, icon })),
+    primary.map(([label, href, icon]) => ({
+      label: href === "/processos" ? (isSupervisor ? "Empresa" : "Processos") : label,
+      href,
+      icon,
+    })),
     isSuperAdmin ? "maximo" : plan,
   ).filter((item) => role !== "Operador" || operatorRouteAllowed(item.href));
 
