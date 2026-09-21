@@ -114,12 +114,14 @@ export const ROTAS_SEM_PLANO = [
   "/signup",
   "/termos",
   "/settings",
+  "/setup-empresa",
 ];
 
 export function rotaPermitidaSemPlano(pathname: string): boolean {
   const p = String(pathname || "/");
   if (p.startsWith("/login") || p === "/login") return true;
   if (p.startsWith("/auth")) return true;
+  if (p.startsWith("/setup-empresa")) return true;
   // Configurações: pode ver upgrade/Pix, mas o gate ainda cobre o restante
   if (p.startsWith("/settings")) return true;
   return false;
