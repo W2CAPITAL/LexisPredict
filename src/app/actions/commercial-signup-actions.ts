@@ -1,6 +1,7 @@
 "use server";
 
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { headers } from "next/headers";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
 import { normalizePlanId, type PlanId } from "@/lib/planos-pacotes";
 
@@ -27,6 +28,55 @@ function isValidCourtesyToken(raw?: string | null) {
 
 export async function validateCourtesyTokenAction(token: string) {
   return { ok: true, valid: isValidCourtesyToken(token) };
+}
+
+async function enforceSignupRateLimit(email: string) {
+  const admin = await getSupabaseAdmin();
+  const h = await headers();
+  const forwarded = String(h.get("x-forwarded-for") || "").split(",")[0]?.trim();
+  const ip = forwarded || String(h.get("x-real-ip") || "unknown");
+  const now = Date.now();
+  const since = new Date(now - 60 * 60 * 1000).toISOString();
+
+  const hash = (value: string) =>
+    createHash("sha256").update(value, "utf8").digest("hex");
+
+  const checks = [
+    { scope: "ip", key: hash(ip), max: 10 },
+    { scope: "email", key: hash(email.toLowerCase()), max: 3 },
+  ];
+
+  for (const item of checks) {
+    const { count, error } = await admin
+      .from("commercial_signup_attempts")
+      .select("id", { head: true, count: "exact" })
+      .eq("scope", item.scope)
+      .eq("key_hash", item.key)
+      .gte("created_at", since);
+
+    if (!error && Number(count || 0) >= item.max) {
+      return {
+        ok: false as const,
+        error:
+          item.scope === "email"
+            ? "Muitas tentativas para este e-mail. Aguarde antes de tentar novamente."
+            : "Muitas tentativas de cadastro. Aguarde antes de tentar novamente.",
+      };
+    }
+  }
+
+  try {
+    await admin.from("commercial_signup_attempts").insert(
+      checks.map((item) => ({
+        scope: item.scope,
+        key_hash: item.key,
+      }))
+    );
+  } catch {
+    /* rate limit store is best-effort */
+  }
+
+  return { ok: true as const };
 }
 
 export type CommercialSignupInput = {
@@ -56,6 +106,9 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
   if (!empresaNome) return { ok: false as const, error: "Informe o nome da empresa." };
   if (!email || !email.includes("@")) return { ok: false as const, error: "Informe um e-mail válido." };
   if (password.length < 6) return { ok: false as const, error: "A senha precisa ter pelo menos 6 caracteres." };
+
+  const rate = await enforceSignupRateLimit(email);
+  if (!rate.ok) return rate;
 
   const admin = await getSupabaseAdmin();
   const empresaId = randomUUID();
