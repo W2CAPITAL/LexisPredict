@@ -76,6 +76,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
   const isApi = path.startsWith('/api/')
   const isAuthPage = path === '/login' || path === '/signup'
+  const isTenantSetupPage = path === '/setup-empresa'
   const isStaticFile = /\.[a-z0-9]+$/i.test(path)
   const isPublicApi = starts(path, PUBLIC_API)
   const isPublic = isAuthPage || path.startsWith('/termos') || isPublicApi || isStaticFile
@@ -141,12 +142,17 @@ export async function middleware(request: NextRequest) {
         .maybeSingle()
 
       if (profileError || !profile) {
+        if (!profileError && isTenantSetupPage) {
+          response.headers.set('Cache-Control', 'private, no-store')
+          return applySecurityHeaders(response)
+        }
         if (isApi) return json({ ok: false, error: 'tenant_profile_missing' }, 403)
-        return redirect('/login')
+        return redirect('/setup-empresa')
       }
 
       const role = String(profile.cargo || '')
       const isSuperAdmin = role === 'Superadmin'
+      if (isTenantSetupPage && isSuperAdmin) return redirect('/')
       const adminPath = starts(path, ADMIN_ONLY)
       const superPath = starts(path, SUPERADMIN_ONLY)
 
@@ -157,7 +163,11 @@ export async function middleware(request: NextRequest) {
       if (!isSuperAdmin) {
         const empresaId = String(profile.empresa_id || '')
         if (!empresaId) {
-          return isApi ? json({ ok: false, error: 'tenant_missing' }, 403) : redirect('/login')
+          if (isTenantSetupPage) {
+            response.headers.set('Cache-Control', 'private, no-store')
+            return applySecurityHeaders(response)
+          }
+          return isApi ? json({ ok: false, error: 'tenant_missing' }, 403) : redirect('/setup-empresa')
         }
 
         const { data: empresa, error: empresaError } = await client
@@ -166,9 +176,17 @@ export async function middleware(request: NextRequest) {
           .eq('id', empresaId)
           .maybeSingle()
 
-        if (empresaError || !empresa) {
-          return isApi ? json({ ok: false, error: 'subscription_unavailable' }, 503) : redirect('/settings')
+        if (empresaError) {
+          return isApi ? json({ ok: false, error: 'tenant_lookup_failed' }, 503) : redirect('/settings')
         }
+        if (!empresa) {
+          if (isTenantSetupPage) {
+            response.headers.set('Cache-Control', 'private, no-store')
+            return applySecurityHeaders(response)
+          }
+          return isApi ? json({ ok: false, error: 'tenant_not_found' }, 409) : redirect('/setup-empresa')
+        }
+        if (isTenantSetupPage) return redirect('/')
 
         const plan = normalizePlanId(empresa.plano || 'essencial')
         const exp = empresa.plano_expira_em ? new Date(empresa.plano_expira_em).getTime() : null
