@@ -13,7 +13,6 @@ import {
   whatsappProprietarioUrl,
   formatExpira,
   saveAssinatura,
-  getAssinatura,
 } from "@/lib/planos-assinatura";
 import { savePlanoEmpresa } from "@/lib/planos-store";
 import { normalizePlanId } from "@/lib/planos-pacotes";
@@ -52,19 +51,12 @@ export function PlanLockGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(false);
 
   useEffect(() => {
-    if (isSuperAdmin || !empresaId || setupRequired) return;
-    const local = getAssinatura(empresaId, {
-      plan: "essencial",
-      expiresAt: null,
-      blocked: false,
-    });
-    if (local.blocked || isLocked) {
-      try {
-        invalidateCarteiraCache();
-        clearScanProgress();
-      } catch {
-        /* cache best effort */
-      }
+    if (isSuperAdmin || !empresaId || setupRequired || !isLocked) return;
+    try {
+      invalidateCarteiraCache();
+      clearScanProgress();
+    } catch {
+      /* cache best effort */
     }
   }, [empresaId, isSuperAdmin, isLocked, setupRequired]);
 
@@ -93,34 +85,80 @@ export function PlanLockGate({ children }: { children: React.ReactNode }) {
   if (!user) return <>{children}</>;
   if (isSuperAdmin) return <>{children}</>;
 
-  // Usuário autenticado sem perfil/empresa é onboarding incompleto, não assinatura suspensa.
-  if (!profile || !empresaId || setupRequired) {
-    if (!serverLoaded && profile) {
-      return (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background p-6">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border bg-card shadow-sm">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-          <div className="space-y-1 text-center">
-            <p className="text-sm font-semibold">Preparando seu ambiente</p>
-            <p className="max-w-sm text-xs text-muted-foreground">
-              Estamos carregando empresa, perfil e permissões.
-            </p>
-          </div>
-        </div>
-      );
-    }
-  } else if (!serverLoaded) {
+  // Sessão já existe, mas o perfil ainda não chegou do Supabase.
+  // Isso é carregamento — nunca suspensão de assinatura.
+  if (user && !profile) {
     return (
       <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background p-6">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl border bg-card shadow-sm">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
         <div className="space-y-1 text-center">
-          <p className="text-sm font-semibold">Validando seu ambiente</p>
+          <p className="text-sm font-semibold">Carregando seu perfil</p>
           <p className="max-w-sm text-xs text-muted-foreground">
-            O LexisPredict confirma empresa, plano e permissões antes de carregar a carteira.
+            Identificando empresa e permissões da sua conta.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Perfil existe, mas o tenant ainda está sendo resolvido.
+  if (!empresaId && !setupRequired) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background p-6">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border bg-card shadow-sm">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+        <div className="space-y-1 text-center">
+          <p className="text-sm font-semibold">Preparando sua empresa</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Carregando o ambiente comercial vinculado ao seu usuário.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!serverLoaded && !setupRequired) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background p-6">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border bg-card shadow-sm">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+        <div className="space-y-1 text-center">
+          <p className="text-sm font-semibold">Validando sua assinatura</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Confirmando o status diretamente no servidor.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Falha de rede/validação não pode ser apresentada como inadimplência.
+  if (serverError && !setupRequired) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-lg rounded-[24px] border bg-card p-6 shadow-xl">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+          </div>
+          <h1 className="mt-5 text-xl font-black">Não foi possível validar seu acesso</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Sua assinatura não foi marcada como suspensa. O servidor apenas não conseguiu confirmar o status neste momento.
+          </p>
+          <p className="mt-3 rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
+            {serverError}
+          </p>
+          <Button
+            type="button"
+            className="mt-5 w-full"
+            onClick={() => window.location.reload()}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Tentar novamente
+          </Button>
         </div>
       </div>
     );
