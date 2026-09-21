@@ -74,6 +74,8 @@ import Link from 'next/link';
 import { getTranslation } from '@/lib/i18n';
 import { useAppStore } from '@/store/use-app-store';
 import { useDataJudScanStore } from '@/store/use-datajud-scan-store';
+import { useAdmin } from '@/hooks/use-admin';
+import { resolveCaseScope } from '@/lib/roles';
 import {
   ResponsiveContainer,
   PieChart,
@@ -92,6 +94,8 @@ import { RevisionalJuridicoKpis } from "@/components/dashboard/revisional-juridi
 
 export default function Dashboard() {
   const { cases, setCases, locale, updateLastSync, sync } = useAppStore();
+  const { profile } = useAdmin();
+  const caseScope = resolveCaseScope(profile as any);
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -122,7 +126,8 @@ export default function Dashboard() {
       } catch { /* */ }
       const cachedRun = await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
-        scope: "mine",
+        empresaId: (profile as any)?.empresa_id || null,
+        scope: caseScope,
         onShow: (caseData) => { if (Array.isArray(caseData)) setCases(caseData); },
         allowStaleKpiFallback: true,
       });
@@ -138,7 +143,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [setCases, updateLastSync]);
+  }, [setCases, updateLastSync, profile, caseScope]);
 
   useEffect(() => {
     setMounted(true);
