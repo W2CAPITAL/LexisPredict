@@ -418,7 +418,6 @@ export async function activateCourtesyPlanAction(token: string, plan: PlanId) {
       plano_expira_em: null,
       billing_status: "active",
       plan_self_service_unlocked: true,
-      onboarding_completed: false,
     })
     .eq("id", ctx.empresa_id)
     .select("id")
