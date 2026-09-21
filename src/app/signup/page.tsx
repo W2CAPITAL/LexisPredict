@@ -27,11 +27,7 @@ import {
   economiaAnual,
 } from "@/lib/planos-precos";
 import { cn } from "@/lib/utils";
-import {
-  activateCourtesyPlanAction,
-  createCommercialAccountAction,
-  validateCourtesyTokenAction,
-} from "@/app/actions/commercial-signup-actions";
+import { createCommercialAccountAction } from "@/app/actions/commercial-signup-actions";
 import { provisionMinhaEmpresaAction } from "@/app/actions/tenant-provision-actions";
 import {
   ArrowLeft,
@@ -44,7 +40,6 @@ import {
   Lock,
   Mail,
   MessageCircle,
-  KeyRound,
   ShieldCheck,
   Sparkles,
   User,
@@ -72,9 +67,6 @@ export default function SignupPage() {
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [donePending, setDonePending] = useState(false);
-  const [courtesyToken, setCourtesyToken] = useState("");
-  const [courtesyValid, setCourtesyValid] = useState(false);
-  const [validatingToken, setValidatingToken] = useState(false);
   const lock = useRef(false);
   const { toast } = useToast();
   const logo = PlaceHolderImages.find((i) => i.id === "app-logo");
@@ -104,30 +96,6 @@ export default function SignupPage() {
 
   const back = () => setStep((s) => Math.max(1, Number(s) - 1) as Step);
 
-  const validateCourtesyToken = async () => {
-    const token = courtesyToken.trim();
-    if (!token) {
-      setCourtesyValid(false);
-      toast({ title: "Informe o token de liberação." });
-      return;
-    }
-
-    setValidatingToken(true);
-    try {
-      const result = await validateCourtesyTokenAction(token);
-      setCourtesyValid(!!result.valid);
-      toast({
-        title: result.valid ? "Token válido" : "Token inválido",
-        description: result.valid
-          ? "O plano selecionado será liberado sem cobrança ao concluir o cadastro."
-          : "Confira o token e tente novamente.",
-        variant: result.valid ? "default" : "destructive",
-      });
-    } finally {
-      setValidatingToken(false);
-    }
-  };
-
   const finish = async () => {
     if (lock.current) return;
     lock.current = true;
@@ -145,7 +113,6 @@ export default function SignupPage() {
         password: form.password,
         nome: nomeUser,
         plan: form.plan,
-        courtesyToken: courtesyToken.trim() || undefined,
         termosVersao: "2026-09-21",
         termosAceitosEm: acceptedAt,
       });
@@ -176,13 +143,7 @@ export default function SignupPage() {
               return;
             }
 
-            if (courtesyToken.trim()) {
-              const activation = await activateCourtesyPlanAction(
-                courtesyToken.trim(),
-                form.plan
-              );
-              if (!activation.ok) {
-                toast({
+            toast({
                   title: "Empresa configurada, mas o token não foi aplicado",
                   description: activation.error || "Revise o token em Configurações → Planos.",
                   variant: "destructive",
@@ -193,9 +154,7 @@ export default function SignupPage() {
 
             toast({
               title: "Conta existente recuperada",
-              description: courtesyToken.trim()
-                ? "Empresa configurada e plano liberado pelo token."
-                : "Empresa configurada. Abrindo seu ambiente…",
+              description: "Empresa configurada. A ativação do plano permanece pendente de confirmação comercial.",
             });
             window.setTimeout(() => window.location.replace("/"), 350);
             return;
@@ -212,29 +171,11 @@ export default function SignupPage() {
         return;
       }
 
-      if (result.courtesy) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: form.password,
-        });
-
-        if (!signInError) {
-          toast({
-            title: "Plano liberado por token",
-            description: PLAN_LABEL[form.plan] + " ativado sem cobrança. Abrindo seu ambiente…",
-          });
-          window.setTimeout(() => window.location.replace("/"), 350);
-          return;
-        }
-      }
-
       setDonePending(true);
       setStep(6);
       toast({
-        title: result.courtesy ? "Plano liberado" : "Cadastro criado",
-        description: result.courtesy
-          ? "O token foi aceito e o plano está ativo."
-          : "Entre em contato com o comercial para liberar o plano escolhido.",
+        title: "Cadastro criado",
+        description: "A empresa foi criada e a solicitação do plano ficou registrada para ativação comercial.",
       });
     } catch (e: any) {
       toast({
@@ -525,10 +466,7 @@ export default function SignupPage() {
                         <button
                           key={id}
                           type="button"
-                          onClick={() => {
-                            set("plan", id);
-                            setCourtesyValid(false);
-                          }}
+                          onClick={() => set("plan", id)}
                           aria-pressed={selected}
                           className={cn(
                             "relative overflow-hidden rounded-2xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-lg",
@@ -591,77 +529,20 @@ export default function SignupPage() {
                     </div>
                   </div>
 
-                  <div
-                    className={cn(
-                      "rounded-2xl border p-4",
-                      courtesyValid
-                        ? "border-violet-500/30 bg-violet-500/5"
-                        : "border-border bg-background/40"
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-700 dark:text-violet-300">
-                        <KeyRound className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-black">Possui token de liberação?</p>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          Um token válido libera o plano selecionado sem cobrança e sem precisar aguardar confirmação comercial.
-                        </p>
-                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                          <Input
-                            type="password"
-                            value={courtesyToken}
-                            onChange={(e) => {
-                              setCourtesyToken(e.target.value);
-                              setCourtesyValid(false);
-                            }}
-                            placeholder="Digite o token"
-                            autoComplete="off"
-                            className="h-10 flex-1 rounded-xl"
-                          />
-                          <Button
-                            type="button"
-                            variant={courtesyValid ? "default" : "outline"}
-                            disabled={validatingToken || !courtesyToken.trim()}
-                            onClick={() => void validateCourtesyToken()}
-                            className={cn(
-                              "h-10 shrink-0",
-                              courtesyValid && "bg-violet-600 text-white hover:bg-violet-700"
-                            )}
-                          >
-                            {validatingToken ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <KeyRound className="mr-2 h-4 w-4" />
-                            )}
-                            {courtesyValid ? "Token validado" : "Validar token"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-sm font-black">
-                          {courtesyValid ? "Liberação automática disponível" : "Solicitar liberação do plano"}
-                        </p>
+                        <p className="text-sm font-black">Solicitação comercial controlada</p>
                         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          {courtesyValid
-                            ? "Conclua o cadastro para ativar o plano selecionado imediatamente, sem cobrança."
-                            : "Ou fale com o comercial pelo WhatsApp (13) 99119-9349 para confirmar a ativação."}
+                          Ao criar a empresa, o plano escolhido fica registrado como pendente. O acesso operacional é liberado somente após confirmação comercial ou ativação pelo Superadmin.
                         </p>
                       </div>
-                      {!courtesyValid ? (
-                        <Button asChild className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700">
-                          <a href={commercialWhatsapp} target="_blank" rel="noopener noreferrer">
-                            <MessageCircle className="mr-2 h-4 w-4" />
-                            Solicitar liberação
-                          </a>
-                        </Button>
-                      ) : null}
+                      <Button asChild className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700">
+                        <a href={commercialWhatsapp} target="_blank" rel="noopener noreferrer">
+                          <MessageCircle className="mr-2 h-4 w-4" />
+                          Falar com o comercial
+                        </a>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -683,7 +564,7 @@ export default function SignupPage() {
                   <div className="mx-auto mt-4 max-w-lg rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 text-left">
                     <p className="text-sm font-black text-sky-800 dark:text-sky-200">Confira seu e-mail</p>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      Verifique a caixa de entrada, spam e lixo eletrônico para mensagens de autenticação ou ativação do LexisPredict. Sem token, o acesso operacional só é liberado após a ativação comercial.
+                      Verifique a caixa de entrada, spam e lixo eletrônico para mensagens de autenticação. O acesso operacional só é liberado após a ativação comercial do plano.
                     </p>
                   </div>
                   <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
