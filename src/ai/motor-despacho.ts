@@ -1,0 +1,284 @@
+/**
+ * MOTOR DE DESPACHO v15.0
+ * - local_only / Motor Lexis → scripts fixos (suggestScripts)
+ * - xAI / Groq / outras → IA LIVRE (análise real do corpus), sem amarrar ao script
+ *
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ */
+
+import { perguntarIA } from '@/ai/flows/chat-ai-flow';
+import { suggestScripts, sortDjenTextsRecentFirst } from '@/lib/script-processual/suggest';
+import { retrieveKnowledge } from '@/lib/knowledge/retrieve';
+import { searchKnowledgeChunksAction } from '@/app/actions/knowledge-actions';
+import { EventoTipo } from '@/lib/case-logic';
+import { blocoFundamentoInstaurarCumprimento } from '@/lib/conhecimento-cpc-honorarios';
+
+export interface MotorDespachoInput {
+  clienteNome: string;
+  protocolo: string;
+  ultimoRetorno?: string | null;
+  movimentos: any[];
+  djenTexts?: string[];
+  eventoTipo?: EventoTipo | null;
+  eventoResumo?: string | null;
+  preferredModel?: string;
+  /** whatsapp = 2ª pessoa, curta, só ato recente */
+  canal?: 'whatsapp' | 'email' | 'interno'; // 'claude' | 'groq-llama' | 'local_only' | ...
+  empresaId?: string;
+  tem_novo_andamento?: boolean;
+  datajud_encerrado_tribunal?: boolean;
+  indicio_busca_apreensao?: boolean;
+  em_cumprimento_sentenca?: boolean;
+  datajud_ultimo_nome?: string | null;
+  /** Falta instaurar cumprimento (motor executivo) */
+  cumprimento_pendente_necessario?: boolean;
+  is_procedente?: boolean;
+  oportunidade_elegivel?: boolean;
+  oportunidade_score?: number | null;
+  oportunidade_tipo_credito?: string | null;
+  oportunidade_dias_apos_transito?: number | null;
+  texto_pobre?: boolean;
+}
+
+const BANNED_TERMS = [
+  'GET ASSESSORIA',
+  'GETASSESSORIA',
+  'W1 CAPITAL',
+  'W1CAPITAL',
+  'W1',
+  'GET',
+  'DAVI ALVES',
+  'FIGUEREDO',
+  'W1CAP',
+  'ASSECOM',
+];
+
+/** Remove 3ª pessoa de processo e reforça tom de mensagem ao cliente. */
+export function sanitizeClienteFacingDraft(text: string, clienteNome?: string): string {
+  let s = String(text || '');
+  const nome = (clienteNome || '').trim().split(/\s+/)[0];
+  s = s
+    .replace(/\bo autor\b/gi, 'você')
+    .replace(/\ba autora\b/gi, 'você')
+    .replace(/\bapelante\b/gi, 'você')
+    .replace(/\brequerente\b/gi, 'você')
+    .replace(/\ba parte autora\b/gi, 'você')
+    .replace(/\bnossa equipe identificou que o autor\b/gi, 'identificamos que você')
+    .replace(/\bO processo em questão é o\b/gi, 'Sobre o seu processo')
+    .replace(/\bque se encontra em grau de recurso\b/gi, 'que está em recurso')
+    .replace(/\bÉ importante que o autor\b/gi, 'É importante que você')
+    .replace(/\bo autor tome\b/gi, 'você tome')
+    .replace(/\bAtenciosamente,?\s*Nossa Equipe\.?/gi, 'Qualquer dúvida, estamos à disposição.');
+  if (nome && !/^(olá|oi|prezad)/i.test(s.trim())) {
+    s = `Olá, ${nome}!\n\n` + s.trim();
+  }
+  return s.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function cleanBannedTerms(text: string): string {
+  let cleaned = text;
+  BANNED_TERMS.forEach((term) => {
+    cleaned = cleaned.replace(new RegExp(`\\b${term}\\b`, 'gi'), 'nosso escritório');
+  });
+  return cleaned;
+}
+
+function isLocalOnly(model?: string) {
+  const m = (model || '').toLowerCase();
+  return m === 'local_only' || m === 'lexis' || m === 'motor_lexis' || m === 'scripts';
+}
+
+/**
+ * Rascunho estratégico.
+ * Lexis (local) = script fixo.
+ * Grok/Groq/etc. = IA livre com regras de segurança (não amarrada ao template).
+ */
+export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
+  const {
+    clienteNome,
+    protocolo,
+    movimentos,
+    djenTexts: djenTextsRaw = [],
+    eventoTipo,
+    eventoResumo,
+    preferredModel,
+    canal,
+    empresaId,
+    tem_novo_andamento,
+    datajud_encerrado_tribunal,
+    indicio_busca_apreensao,
+    em_cumprimento_sentenca,
+    cumprimento_pendente_necessario,
+    is_procedente,
+    oportunidade_elegivel,
+    oportunidade_score,
+    oportunidade_tipo_credito,
+    oportunidade_dias_apos_transito,
+    texto_pobre,
+  } = input;
+
+  const djenTexts = sortDjenTextsRecentFirst(djenTextsRaw || []);
+
+  const deveFalarCumprimento =
+    !!cumprimento_pendente_necessario ||
+    !!oportunidade_elegivel ||
+    (!!is_procedente && !em_cumprimento_sentenca && !datajud_encerrado_tribunal);
+
+  const fundamentoCumprimento = deveFalarCumprimento
+    ? blocoFundamentoInstaurarCumprimento({
+        tipoCredito: oportunidade_tipo_credito || undefined,
+        diasAposTransito: oportunidade_dias_apos_transito ?? null,
+      })
+    : '';
+
+  const suggestions = suggestScripts({
+    clienteNome,
+    protocolo,
+    ultimoRetorno: input.ultimoRetorno,
+    movimentos,
+    djenTexts,
+    eventoTipo,
+    eventoResumo,
+    tem_novo_andamento,
+    datajud_encerrado_tribunal,
+    indicio_busca_apreensao,
+    em_cumprimento_sentenca,
+    datajud_ultimo_nome: input.datajud_ultimo_nome,
+  });
+
+  const baseScript = suggestions[0]?.texto || '';
+
+  // ——— APENAS Motor Lexis: script fixo
+  if (isLocalOnly(preferredModel)) {
+    let localTxt = baseScript;
+    if (deveFalarCumprimento && fundamentoCumprimento && canal !== 'whatsapp') {
+      localTxt = `${baseScript}\n\n---\n${fundamentoCumprimento}`;
+    } else if (deveFalarCumprimento && !baseScript) {
+      localTxt =
+        canal === 'whatsapp'
+          ? `Olá! Sobre o seu processo, identificamos indícios de título transitado que pode permitir a fase de cumprimento. Nossa equipe vai conferir o teor e o cálculo antes de qualquer cobrança ou protocolo. Qualquer novidade te avisamos.`
+          : fundamentoCumprimento;
+    }
+    return {
+      sucesso: true,
+      rascunho: sanitizeClienteFacingDraft(cleanBannedTerms(localTxt), clienteNome),
+      engine: 'MOTOR_LEXIS_SCRIPTS',
+      engineUtilizada: 'MOTOR_LEXIS_SCRIPTS',
+    };
+  }
+
+  // ——— IA externa: LIVRE (não forçar script)
+  const keywords = [
+    String(eventoTipo || ''),
+    ...(movimentos[0]?.nome?.split(' ') || []),
+  ].slice(0, 8);
+
+  let contextKnowledge = '';
+  try {
+    const staticChunks = retrieveKnowledge(keywords);
+    let dynamicChunks: any[] = [];
+    if (empresaId) {
+      const dbRes = await searchKnowledgeChunksAction(keywords, empresaId);
+      if (dbRes.success) dynamicChunks = dbRes.chunks || [];
+    }
+    const allChunks = [...staticChunks, ...dynamicChunks].slice(0, 5);
+    contextKnowledge = allChunks.map((c) => c.texto).join('\n\n');
+  } catch {
+    // knowledge opcional
+  }
+
+  const historicoTxt = (movimentos || [])
+    .slice(0, 12)
+    .map((m: any) => {
+      const bits = [m.dataHora, m.nome, m.complemento, m.descricao].filter(Boolean);
+      return `- ${bits.join(' | ')}`;
+    })
+    .join('\n');
+
+  const djenBlock =
+    djenTexts.length > 0
+      ? `\nPUBLICAÇÕES DJEN (texto limpo):\n${djenTexts.slice(0, 8).join('\n---\n')}`
+      : '';
+
+  const systemPrompt = `Você é redator de atendimento processual (WhatsApp) para assessoria jurídica brasileira.
+Escreva UMA mensagem curta ao CLIENTE leigo. Português claro.
+
+REGRAS OBRIGATÓRIAS:
+1. Use SOMENTE fatos do histórico/DJEN abaixo. NÃO invente andamento, valor, prazo ou resultado.
+2. R$ de renda/salário/cônjuge NÃO é custas. Só fale valor de custas se o texto ligar a taxa/guia/UFESP e disser quem paga.
+3. Se a intimação for ao réu/banco/requerido, diga que a cobrança NÃO é do cliente.
+4. AJG do autor → cliente em regra isento de custas.
+5. "Sob pena de cancelamento" ≠ cancelamento já feito. Se o despacho só ameaça cancelar se não pagar custas, diga que HÁ PRAZO e oriente a regularizar — não diga que o processo já foi baixado.
+6. Cancelamento/extinção só se o texto disser que a distribuição FOI cancelada / processo extinto / baixa definitiva após isso.
+7. NUNCA mencione busca e apreensão, veículo ou mandado se isso não estiver explícito nos movimentos/DJEN deste processo (ignore jurisprudência citada).
+8. Cumprimento de sentença / intimação ao executado = atualização positiva para o autor.
+9. Nunca cite marcas de escritório; use "nossa equipe".
+10. Tom: objetivo, 6–12 linhas. Sem juridiquês vazio. Sem "como IA".
+11. Se o histórico for insuficiente, diga que a equipe está analisando — não complete com suposição.
+12. PRIORIDADE TEMPORAL: use SEMPRE o evento mais recente com mérito (decisão, intimação com prazo, extinção, petição de cumprimento). Ignore despachos antigos já superados por intimação/petição posterior.
+13. Justiça gratuita / emenda / Registrato: se houver despacho pedindo documentos E petição posterior da equipe, diga que a pendência foi tratada / protocolo realizado — NÃO reabra a lista completa de documentos do despacho antigo.
+14. Se o prazo final de intimação já passou e há petição recente, foque no status "aguardando juízo", não em "envie documentos agora".
+15. Mensagem curta (WhatsApp): 4–8 linhas, tom de equipe, sem "Prezado", sem inventar que o cliente precisa agir se a equipe já protocolou.
+16. SEMPRE 2ª pessoa: "você", "seu processo", "te aviso". PROIBIDO: "o autor", "o apelante", "a parte autora", "nossa equipe identificou que o autor".
+17. Cite APENAS o ato mais recente com efeito prático (ex.: AJG indeferida + preparo 5 dias). Não diga que o "último evento" é remessa antiga se houver DJEN mais novo.
+18. Se houver indeferimento de justiça gratuita + preparo/deserção: foque nisso e no prazo — não fale de contrarrazões antigas.
+
+Script de apoio (pode inspirar o tom, não copie se contradizer o histórico):
+${baseScript ? baseScript.slice(0, 800) : '(nenhum)'}
+
+Base auxiliar:
+${contextKnowledge || '(sem base extra)'}
+`;
+
+  const userPrompt = `PROCESSO: ${protocolo}
+CLIENTE (autor/polo ativo típico): ${clienteNome}
+EVENTO: ${eventoTipo || 'N/A'} — ${eventoResumo || 'N/A'}
+FLAGS: ENCERRADO=${!!datajud_encerrado_tribunal} CUMPRIMENTO=${!!em_cumprimento_sentenca} PENDENTE_INSTAURAR=${!!cumprimento_pendente_necessario} PROCEDENTE=${!!is_procedente} OPORTUNIDADE=${oportunidade_elegivel ? `sim score=${oportunidade_score ?? '?'} tipo=${oportunidade_tipo_credito || 'incerto'}` : 'não'} TEXTO_POBRE=${!!texto_pobre} NOVIDADE=${!!tem_novo_andamento}
+(IGNORE qualquer tag B.A. da interface; só use o histórico abaixo.)
+${fundamentoCumprimento ? `\nFUNDAMENTO JURÍDICO (citável, NÃO invente valores em R$):\n${fundamentoCumprimento}\n` : ''}
+
+CRONOLOGIA / MOVIMENTOS (já priorize o MAIS RECENTE):
+${historicoTxt || '(sem movimentos detalhados)'}
+
+Lembrete: o evento no TOPO da lista (data mais nova) manda na mensagem. Não resuma só o despacho de maio se existir intimação/petição em julho/agosto.
+${djenBlock}
+
+MODO CLIENTE (obrigatório): 2ª pessoa (você), sem "o autor/a parte autora/apelante".
+${canal === 'whatsapp' ? 'WHATSAPP: 4-8 linhas, só o ato mais recente com efeito prático, tom humano.' : 'E-mail/interno: pode ser um pouco mais longo, mas mantenha 2ª pessoa e o ato mais recente no centro.'}
+Redija a mensagem final ao cliente. Urgente só se o prazo/cobrança for DELE de verdade.`;
+
+  try {
+    const response = await perguntarIA({
+      pergunta: userPrompt,
+      historico: [{ role: 'system', content: systemPrompt }],
+      preferredModel:
+        !preferredModel || preferredModel === 'auto' || preferredModel === 'omni'
+          ? 'omni'
+          : preferredModel === 'local_only' || preferredModel === 'lexis'
+            ? 'local_only'
+            : preferredModel,
+    });
+
+    const engine =
+      (response as any).engineUtilizada ||
+      (response as any).engine ||
+      preferredModel ||
+      'IA';
+
+    const rawDraft = (response as any).resposta || (response as any).texto || baseScript;
+    return {
+      sucesso: true,
+      rascunho: sanitizeClienteFacingDraft(cleanBannedTerms(rawDraft), clienteNome),
+      engine,
+      engineUtilizada: engine,
+    };
+  } catch (error) {
+    // Fallback só se a IA falhar: script Lexis
+    return {
+      sucesso: false,
+      rascunho: sanitizeClienteFacingDraft(cleanBannedTerms(baseScript), clienteNome),
+      engine: 'LOCAL_FALLBACK_SCRIPT',
+      engineUtilizada: 'LOCAL_FALLBACK_SCRIPT',
+    };
+  }
+}
