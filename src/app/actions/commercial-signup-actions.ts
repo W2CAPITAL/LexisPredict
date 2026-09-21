@@ -46,7 +46,12 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
   const password = String(input.password || "");
   const nome = String(input.nome || email.split("@")[0] || "ADMINISTRADOR").trim();
   const requestedPlan = normalizePlanId(input.plan || "essencial");
-  const courtesy = isValidCourtesyToken(input.courtesyToken);
+  const rawCourtesyToken = String(input.courtesyToken || "").trim();
+  const courtesy = isValidCourtesyToken(rawCourtesyToken);
+
+  if (rawCourtesyToken && !courtesy) {
+    return { ok: false as const, code: "invalid_token", error: "Token de liberação inválido." };
+  }
 
   if (!empresaNome) return { ok: false as const, error: "Informe o nome da empresa." };
   if (!email || !email.includes("@")) return { ok: false as const, error: "Informe um e-mail válido." };
