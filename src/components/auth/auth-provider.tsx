@@ -12,6 +12,7 @@ import { supabase, UserProfile, isSupabaseConfigured } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { registrarLoginAction } from '@/app/actions/auditoria-actions';
+import { disableGuestMode, isGuestMode } from '@/lib/guest-mode';
 
 interface AuthContextType {
   user: any | null;
@@ -56,6 +57,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [guestMode, setGuestMode] = useState(false);
   const router = useRouter();
   const fetchingProfile = useRef(false);
   const lastUserId = useRef<string | null>(null);
@@ -155,6 +157,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   useEffect(() => {
+    if (isGuestMode()) {
+      const guestUser = { id: 'guest', email: 'convidado@lexispredict.local', user_metadata: { guest: true } };
+      const guestProfile: UserProfile = {
+        id: 'guest-profile',
+        auth_user_id: 'guest',
+        empresa_id: 'guest-local',
+        nome: 'CONVIDADO',
+        email: 'convidado@lexispredict.local',
+        cargo: 'Superadmin',
+        role: 'superadmin',
+        created_at: new Date(0).toISOString(),
+        avatar_url: null,
+      };
+      setGuestMode(true);
+      setUser(guestUser);
+      setProfile(guestProfile);
+      setLoading(false);
+      setSessionError(null);
+      return;
+    }
 
     if (!supabase) {
       setLoading(false);
@@ -253,6 +275,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [goLogin, loadProfile, refreshSession]);
 
   const signOut = async () => {
+    if (guestMode || isGuestMode()) disableGuestMode();
     try {
       if (supabase) await supabase.auth.signOut({ scope: 'local' });
     } catch {
