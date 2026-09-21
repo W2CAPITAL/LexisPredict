@@ -104,15 +104,15 @@ export function canSeeCompanyProcesses(cargo?: RoleLike): boolean {
   return isMasterView(cargo);
 }
 
-export type CaseScope = 'mine' | 'company';
+export type CaseScope = 'mine' | 'empresa';
 
 /**
  * Fonte única de escopo da carteira.
- * - Supervisor/Superadmin => company
+ * - Supervisor/Superadmin => empresa
  * - Administrador/Operador/Visualizador => mine
  */
 export function resolveCaseScope(cargo?: RoleLike): CaseScope {
-  return canSeeCompanyProcesses(cargo) ? 'company' : 'mine';
+  return canSeeCompanyProcesses(cargo) ? 'empresa' : 'mine';
 }
 
 
