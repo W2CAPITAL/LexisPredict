@@ -58,7 +58,12 @@ export default function LoginPage() {
     return () => clearTimeout(safetyTimeout);
   }, [user, profile, authLoading, router]);
 
-  const enterGuest = () => {
+  const enterGuest = async () => {
+    try {
+      if (supabase) await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      /* sessão residual é limpa pelo modo convidado */
+    }
     enableGuestMode();
     toast({
       title: "Modo convidado ativado",
@@ -305,7 +310,7 @@ export default function LoginPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={enterGuest}
+                onClick={() => void enterGuest()}
                 className="h-12 w-full rounded-xl border-sky-200 bg-sky-50 font-bold text-sky-800 hover:bg-sky-100 hover:text-sky-900"
               >
                 <TestTube2 className="mr-2 h-4 w-4" />
