@@ -140,10 +140,11 @@ export function PlanosEmpresaPanel() {
     try {
       const r = await trocarMeuPlanoAction(id, ciclo);
       if (!r.ok) {
+        const needsSetup = "setupRequired" in r && Boolean(r.setupRequired);
         toast({
-          title: r.setupRequired ? "Configuração necessária" : "Não foi possível solicitar",
+          title: needsSetup ? "Configuração necessária" : "Não foi possível solicitar",
           description: r.error || "Falha ao gravar a solicitação.",
-          variant: r.setupRequired ? "default" : "destructive",
+          variant: needsSetup ? "default" : "destructive",
         });
         return;
       }
