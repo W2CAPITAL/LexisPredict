@@ -882,7 +882,11 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
 
 export async function listAllEmpresasSystem() {
   const admin = await getSupabaseAdmin();
-  const { data } = await admin.from('empresas').select('id, nome');
+  const { data, error } = await admin
+    .from('empresas')
+    .select('id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status')
+    .order('nome', { ascending: true });
+  if (error) throw error;
   return data || [];
 }
 
