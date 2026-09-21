@@ -1,4 +1,4 @@
-import { UserRole } from '@/lib/supabase';
+import type { UserRole } from '@/lib/supabase';
 
 /**
  * Matriz oficial de permissões do LexisPredict Commercial.
