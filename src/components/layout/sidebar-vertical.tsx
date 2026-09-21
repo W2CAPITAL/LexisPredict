@@ -82,6 +82,7 @@ export function SidebarVertical() {
       ...group,
       items: filterNavByPlan(group.items, isSuperAdmin ? 'maximo' : plan).filter(
         item =>
+          (item.href !== '/processos' || isSupervisor) &&
           (role !== 'Operador' || operatorRouteAllowed(item.href)) &&
           (!query || normalize(`${item.label} ${item.href}`).includes(normalize(query)))
       ),
