@@ -7,9 +7,20 @@ export type FirstRunPreferencesInput = {
   sidebarCompact: boolean;
 };
 
+export type FirstRunPreferencesResult =
+  | {
+      ok: true;
+      navLayout: FirstRunPreferencesInput["navLayout"];
+      sidebarCompact: boolean;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 export async function completeCommercialFirstRunAction(
   input: FirstRunPreferencesInput
-) {
+): Promise<FirstRunPreferencesResult> {
   const ctx = await getUserContext();
   const empresaId = String(ctx?.empresa_id || "").trim();
 
@@ -17,7 +28,8 @@ export async function completeCommercialFirstRunAction(
     return { ok: false as const, error: "Empresa não vinculada à sessão." };
   }
 
-  const navLayout = input.navLayout === "vertical" ? "vertical" : "dock";
+  const navLayout: FirstRunPreferencesInput["navLayout"] =
+    input.navLayout === "vertical" ? "vertical" : "dock";
   const sidebarCompact = !!input.sidebarCompact;
   const admin = await getSupabaseAdmin();
 
