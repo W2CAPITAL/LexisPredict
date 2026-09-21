@@ -64,7 +64,16 @@ export function SidebarVertical() {
     return () => window.removeEventListener('lexis-nav-display', update);
   }, []);
   const groups = useMemo(() => {
-    const all = sections.map(section => ({ title: String(section.title), items: section.items.map(([label, href, icon]) => ({ label, href, icon })) }));
+    const all = sections.map(section => ({
+      title: String(section.title),
+      items: section.items.map(([label, href, icon]) => ({
+        label: href === '/processos'
+          ? (isSupervisor ? 'Processos da empresa' : 'Processos')
+          : label,
+        href,
+        icon,
+      })),
+    }));
     const team = [];
     if (isSupervisor) team.push({ label: 'Supervisão', href: '/supervisao', icon: ShieldCheck }, { label: 'Equipe', href: '/team', icon: Users }, { label: 'Auditoria', href: '/auditoria', icon: ShieldCheck });
     if (isSuperAdmin) team.push({ label: 'Segurança', href: '/security', icon: ShieldAlert }, { label: 'Administração', href: '/superadmin', icon: Crown });
