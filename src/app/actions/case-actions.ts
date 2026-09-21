@@ -1125,9 +1125,11 @@ export async function fetchCompanyProcessosAction() {
     const empresa_id = ctx.empresa_id;
     if (!empresa_id) return empty;
     const companyWide = !!(ctx.isSupervisor || ctx.isSuperAdmin);
+    if (!companyWide) {
+      return { ...empty, error: "supervisao_required" };
+    }
 
-    // Administrador recebe somente a própria carteira.
-    // Auditoria, usuários e ranking são dados de supervisão.
+    // /processos é a visão consolidada da empresa e exige escopo wide.
     const { fetchRankingAtendentesEmpresaAction } = await import(
       "@/app/actions/ranking-atendentes-action"
     );
