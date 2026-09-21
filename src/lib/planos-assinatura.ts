@@ -48,7 +48,8 @@ export function getAssinatura(
   fallback: AssinaturaStatus = {
     plan: "essencial",
     expiresAt: null,
-    blocked: false,
+    blocked: true,
+    blockedReason: "validating_subscription",
   }
 ): AssinaturaStatus {
   if (!empresaId) return fallback;
