@@ -915,6 +915,8 @@ export async function saveStoredCasesForEmpresa(
 }
 
 export async function listAllEmpresasSystem() {
+  const ctx = await getUserContext();
+  if (!ctx.isSuperAdmin) return [];
   const admin = await getSupabaseAdmin();
   const { data, error } = await admin
     .from('empresas')
@@ -1009,9 +1011,16 @@ export async function deleteStoredNote(id: string): Promise<{ success: boolean }
 }
 
 export async function getEmpresaUsers(): Promise<UserProfile[]> {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id || !supabase) return [];
-  const { data, error } = await supabase.from('usuarios').select('*').eq('empresa_id', empresa_id).order('nome', { ascending: true });
+  const ctx = await getUserContext();
+  const { empresa_id } = ctx;
+  if (!empresa_id || (!ctx.isSupervisor && !ctx.isSuperAdmin)) return [];
+  const admin = await getSupabaseAdmin();
+  const { data, error } = await admin
+    .from('usuarios')
+    .select('*')
+    .eq('empresa_id', empresa_id)
+    .order('nome', { ascending: true });
+  if (error) return [];
   return (data as UserProfile[]) || [];
 }
 
@@ -1235,10 +1244,12 @@ export async function fetchAuditoriaLogsAction(
 ): Promise<any[]> {
   try {
     const ctx = await getUserContext();
+    if (!ctx.isSupervisor && !ctx.isSuperAdmin) return [];
     const empresa = empresaId || ctx.empresa_id;
-    if (!empresa || !supabase) return [];
+    if (!empresa || empresa !== ctx.empresa_id) return [];
 
-    const { data, error } = await supabase
+    const admin = await getSupabaseAdmin();
+    const { data, error } = await admin
       .from('auditoria_logs_app')
       .select('*')
       .eq('empresa_id', empresa)
