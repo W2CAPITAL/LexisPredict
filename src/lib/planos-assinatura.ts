@@ -18,6 +18,7 @@ export type AssinaturaStatus = {
   blocked: boolean;
   blockedReason?: string;
   origem?: string;
+  validatedAt?: number;
 };
 
 const KEY = "lexis_empresa_assinaturas_v1";
