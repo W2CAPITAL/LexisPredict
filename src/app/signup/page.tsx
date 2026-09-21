@@ -38,6 +38,7 @@ import {
   Loader2,
   Lock,
   Mail,
+  MessageCircle,
   ShieldCheck,
   Sparkles,
   User,
@@ -154,6 +155,9 @@ export default function SignupPage() {
   };
 
   const selectedPlan = PLANOS_PRECOS[form.plan];
+  const commercialWhatsapp = "https://wa.me/5513991199349?text=" + encodeURIComponent(
+    "Olá, quero solicitar a liberação do plano " + PLAN_LABEL[form.plan] + " do LexisPredict para a empresa " + (form.empresa.trim() || "minha empresa") + "."
+  );
 
   return (
     <div className="min-h-screen bg-background p-3 sm:p-5">
@@ -377,7 +381,7 @@ export default function SignupPage() {
                       className="mt-0.5"
                     />
                     <span className="text-sm leading-relaxed">
-                      Li e aceito os termos de uso e as condições de operação do LexisPredict.
+                      Li e aceito os Termos de Uso, Política de Privacidade e consentimentos descritos, inclusive regras de tratamento de dados, IA, ativação de plano e modo convidado.
                     </span>
                   </label>
 
@@ -479,7 +483,24 @@ export default function SignupPage() {
                       </div>
                       <p className="text-lg font-black">{formatBRL(selectedPlan.valorMensal)}<span className="text-[10px] font-normal text-muted-foreground">/mês</span></p>
                     </div>
-                  </div>
+
+
+                  <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-black">Solicitar liberação do plano</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          Após escolher o plano, fale com o comercial pelo WhatsApp <strong className="text-foreground">(13) 99119-9349</strong> para confirmar a ativação.
+                        </p>
+                      </div>
+                      <Button asChild className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700">
+                        <a href={commercialWhatsapp} target="_blank" rel="noopener noreferrer">
+                          <MessageCircle className="mr-2 h-4 w-4" />
+                          Solicitar liberação
+                        </a>
+                      </Button>
+                    </div>
+                  </div>                  </div>
                 </div>
               )}
 
@@ -496,12 +517,20 @@ export default function SignupPage() {
                     Sua conta foi criada para o plano <strong className="text-foreground">{PLAN_LABEL[form.plan]}</strong>.
                     Se a empresa ainda não aparecer no banco, o sistema mostrará “configuração inicial” — nunca “empresa bloqueada”.
                   </p>
-                  <Button asChild className="mt-6">
+                  <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+                    <Button asChild className="bg-emerald-600 text-white hover:bg-emerald-700">
+                      <a href={commercialWhatsapp} target="_blank" rel="noopener noreferrer">
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        Solicitar liberação do plano
+                      </a>
+                    </Button>
+                    <Button asChild variant="outline">
                     <Link href="/login">
                       Ir para login
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
-                  </Button>
+                    </Button>
+                  </div>
                 </div>
               )}
 
