@@ -8,6 +8,7 @@ import { cache } from 'react';
 import { uniqueCases } from './case-identity';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { canSupervisaoCarteira, isSuperAdminProfile } from './auth-supervisao';
+import { resolveCaseScope } from './roles';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -31,7 +32,7 @@ export async function getSupabaseAdmin() {
 }
 
 const resolveUserContext = cache(async () => {
-  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, weight: 0, safety: false };
+  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, caseScope: 'mine' as const, weight: 0, safety: false };
   try {
     const { cookies } = await import("next/headers");
     const jar = await cookies();
@@ -46,6 +47,11 @@ const resolveUserContext = cache(async () => {
         jar.get("lexis_empresa_id")?.value ||
         process.env.LEXIS_SAFETY_EMPRESA_ID ||
         "d37fd4bb-1c71-4dca-b97e-292355918d39";
+      const caseScope = resolveCaseScope({
+        cargo,
+        isSuperAdmin,
+        isSupervisor,
+      });
       return {
         auth_id: email || nome,
         empresa_id,
@@ -55,9 +61,10 @@ const resolveUserContext = cache(async () => {
         isSuperAdmin,
         isSupervisor,
         isViewer: false,
-        isMasterView: isSuperAdmin || isSupervisor,
-        isAdministrador: /admin/i.test(cargo) && !isSupervisor,
-        isEmpresaWide: isSuperAdmin || isSupervisor,
+        isMasterView: caseScope === 'company',
+        isAdministrador: /admin/i.test(cargo) && !isSupervisor && !isSuperAdmin,
+        isEmpresaWide: caseScope === 'company',
+        caseScope,
         weight: ROLE_WEIGHTS[cargo] || 40,
         safety: true,
       };
@@ -81,10 +88,14 @@ const resolveUserContext = cache(async () => {
   const isSuperAdmin = isSuperAdminProfile(profile) || checkIfSuperAdmin(profile);
   const isSupervisor = canSupervisaoCarteira(profile) || checkIfSupervisor(profile);
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
-  // Regra comercial oficial:
-  // Supervisor/Superadmin = empresa inteira.
-  // Administrador/Operador/Visualizador = somente processos próprios.
-  const isMasterView = isSuperAdmin || isSupervisor;
+  // Fonte única de escopo comercial.
+  const caseScope = resolveCaseScope({
+    cargo,
+    role: profile?.role,
+    isSuperAdmin,
+    isSupervisor,
+  });
+  const isMasterView = caseScope === 'company';
   const isAdministrador =
     /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer && !isSupervisor && !isSuperAdmin;
   const isEmpresaWide = isMasterView;
@@ -101,6 +112,7 @@ const resolveUserContext = cache(async () => {
     isMasterView,
     isAdministrador,
     isEmpresaWide,
+    caseScope,
     weight: ROLE_WEIGHTS[cargo] || 0
   };
 });
@@ -180,12 +192,11 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   const context = await getUserContext();
   if (context.empresa_id !== empresaId) throw new Error("Acesso à empresa não autorizado.");
-  const { auth_id, isSuperAdmin, isSupervisor } = context as any;
+  const { auth_id } = context as any;
 
   // O parâmetro isAdmin é legado e NÃO amplia visibilidade.
-  // Apenas Supervisor/Superadmin veem a carteira completa.
-  // Administrador/Operador/Visualizador ficam em created_by = auth_id.
-  const wantAll = !!(isSuperAdmin || isSupervisor);
+  // O escopo vem exclusivamente de resolveCaseScope().
+  const wantAll = resolveCaseScope(context as any) === 'company';
 
   const mapRows = (rows: any[]): LegalCase[] => {
     const out: LegalCase[] = [];
@@ -303,7 +314,8 @@ export async function getStoredCasesPageForEmpresa(
 
   try {
     const context = await getUserContext();
-    const { auth_id, isMasterView } = context;
+    const { auth_id } = context;
+    const caseScope = resolveCaseScope(context as any);
     const onlyAtivos = opts?.onlyAtivos === true;
 
     let query = client
@@ -318,7 +330,7 @@ export async function getStoredCasesPageForEmpresa(
       query = query.not("status", "in", '("Arquivado","ENCERRADO","Extinto","SUSPENSO")');
     }
 
-    if (!isMasterView) {
+    if (caseScope === 'mine') {
       if (!auth_id) return [];
       query = query.eq("created_by", auth_id);
     }
@@ -803,7 +815,8 @@ export async function saveStoredCasesForEmpresa(
 ): Promise<{ success: boolean; message: string }> {
   try {
     const ctx = await getUserContext();
-    const { auth_id, isMasterView } = ctx;
+    const { auth_id } = ctx;
+    const caseScope = resolveCaseScope(ctx as any);
     if (!auth_id || !ctx.empresa_id) {
       return { success: false, message: 'Sessão expirada.' };
     }
@@ -840,12 +853,12 @@ export async function saveStoredCasesForEmpresa(
       if (!protocolo) return [];
 
       const existingOwner = ownerByProto.get(protocolo) || null;
-      if (!isMasterView && existingOwner && existingOwner !== auth_id) {
+      if (caseScope === 'mine' && existingOwner && existingOwner !== auth_id) {
         denied.push(protocolo);
         return [];
       }
 
-      const owner = isMasterView
+      const owner = caseScope === 'company'
         ? existingOwner || String((item as any).created_by || auth_id)
         : auth_id;
 
