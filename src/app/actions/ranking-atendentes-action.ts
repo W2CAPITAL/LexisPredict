@@ -66,6 +66,9 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     if (!ctx?.empresa_id) {
       return { ok: false, ranking: [], totalLinhas: 0, error: "sem empresa" };
     }
+    if (!ctx.isSupervisor && !ctx.isSuperAdmin) {
+      return { ok: false, ranking: [], totalLinhas: 0, error: "supervisao_required" };
+    }
     const admin = await getSupabaseAdmin();
     if (!admin) {
       return { ok: false, ranking: [], totalLinhas: 0, error: "admin" };
