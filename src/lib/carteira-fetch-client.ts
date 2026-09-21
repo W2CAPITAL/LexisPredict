@@ -126,3 +126,41 @@ export function mergeCarteiraPages(
 
   return out;
 }
+
+
+/**
+ * Carteira completa com entrega progressiva.
+ * A primeira página libera a UI; páginas seguintes continuam em background.
+ */
+export async function fetchCarteiraAllClient(opts: {
+  empresaId: string;
+  pageSize?: number;
+  onlyAtivos?: boolean;
+  onPage?: (cases: LegalCase[], page: number) => void;
+}): Promise<LegalCase[]> {
+  if (!opts.empresaId) return [];
+
+  const pageSize = Math.max(50, Math.min(Number(opts.pageSize || 300), 500));
+  let page = 0;
+  let all: LegalCase[] = [];
+
+  while (true) {
+    const next = await fetchCarteiraPageClient({
+      empresaId: opts.empresaId,
+      limit: pageSize,
+      offset: page * pageSize,
+      onlyAtivos: opts.onlyAtivos,
+    });
+
+    all = mergeCarteiraPages(all, next);
+    opts.onPage?.(all, page);
+
+    if (next.length < pageSize) break;
+    page += 1;
+
+    // Cede o event loop entre páginas para a UI permanecer responsiva.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  }
+
+  return all;
+}
