@@ -884,7 +884,7 @@ export async function listAllEmpresasSystem() {
   const admin = await getSupabaseAdmin();
   const { data, error } = await admin
     .from('empresas')
-    .select('id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status')
+    .select('id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status, plan_self_service_unlocked, onboarding_completed, nav_layout, sidebar_compact')
     .order('nome', { ascending: true });
   if (error) throw error;
   return data || [];
