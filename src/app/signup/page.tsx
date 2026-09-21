@@ -142,7 +142,7 @@ export default function SignupPage() {
             )}
           </div>
           <h1 className="text-lg font-black tracking-tight">Criar conta LexisPredict</h1>
-          <p className="text-[11px] text-muted-foreground">Conta comercial · ativação controlada pelo servidor</p>
+          <p className="text-[11px] text-muted-foreground">Crie o login, cadastre a empresa e escolha o plano · ativação por contato comercial</p>
         </div>
 
         {/* progress */}
@@ -234,7 +234,8 @@ export default function SignupPage() {
           {step === 5 && (
             <div className="space-y-3 animate-in fade-in duration-300">
               <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <CreditCard size={14} /> Escolha o plano. O acesso só libera após o Superadmin confirmar o pagamento.
+                <CreditCard size={14} /> Escolha o plano. Após concluir, entre em contato pelo WhatsApp{" "}
+                <strong>(13) 99119-9349</strong> para ativar o acesso.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {PLAN_IDS.map((id) => {

@@ -63,6 +63,95 @@ export function TermsOfServiceContent() {
         11.3 Correção de bug não admite culpa por prazos.</p>
       </div>
 
+      <section className="space-y-4 border-t border-border pt-6">
+        <h3 className="text-base font-black uppercase tracking-tighter text-foreground">
+          Licença de software e regime de tratamento de dados públicos judiciais
+        </h3>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase">
+          Plataforma LexisPredict — nuvem, modo segurança por planilha e variante offline · Titular: Davi Alves
+          Figueredo, em operação associada à W1 Capital · Foro: Comarca de São Paulo/SP · Vigência: 21 de setembro de 2026
+        </p>
+        <p>
+          Este regime disciplina (i) o acesso e uso da plataforma LexisPredict; (ii) a licença de uso, onerosa ou
+          graciosa conforme o plano; (iii) o tratamento de dados de fontes públicas do Poder Judiciário (CNJ, DataJud,
+          DJEN e numeração única de processos); e (iv) os limites entre dado processual público, dado pessoal e uso
+          comercial lícito. A aceitação ocorre pelo cadastro, login, clique em “aceito”, uso continuado ou implantação
+          em ambiente do contratante.
+        </p>
+
+        <p><strong>Cláusula 1 — Partes, adesão e âmbito</strong><br />
+        1.1 Licenciante: Davi Alves Figueredo e, quando aplicável, a estrutura operacional W1 Capital.<br />
+        1.2 Licenciado/Usuário: pessoa natural ou jurídica que acessa a plataforma, inclusive operadores,
+        administradores, supervisores, superadministradores e terceiros com credencial.<br />
+        1.3 A adesão é contratual mesmo em plano gratuito, experimental, de cortesia ou “modo segurança”. Gratuidade não
+        renuncia a direitos autorais.<br />
+        1.4 Operação presumida no Brasil, sujeita à LGPD (Lei 13.709/2018), ao Marco Civil (Lei 12.965/2014), à Lei de
+        Direitos Autorais (Lei 9.610/1998), à Lei de Software (Lei 9.609/1998) e às normas do CNJ.<br />
+        1.5 Módulos: carteira de processos, filas de atendimento, scanner DataJud/DJEN, gerador de peças, dossiê, CRM,
+        WhatsApp operacional, modo segurança e instância offline.</p>
+
+        <p><strong>Cláusula 4 — Licença de software (proprietária)</strong><br />
+        4.1 O programa é obra protegida pelas Leis 9.609/1998 e 9.610/1998; repositório visível em desenvolvimento não
+        altera a natureza proprietária.<br />
+        4.2 Licença não exclusiva, intransferível, revogável, limitada ao território brasileiro e ao prazo do plano.<br />
+        4.3 Vedado copiar código para produto concorrente, sublicenciar, engenharia reversa (salvo o permitido em lei),
+        revender modelos de peça, remover marcas/avisos ou republicar dumps com dados de terceiros.<br />
+        4.5 Componentes de terceiros (Next.js, bibliotecas open source, fontes, ícones) permanecem sob as respectivas
+        licenças; este instrumento cobre a obra coletiva e o código original do licenciante.</p>
+
+        <p><strong>Cláusula 6 — Regime dos dados públicos judiciais</strong><br />
+        6.1 O processo é, em regra, público (CF art. 5º, LX; CPC art. 189), mas publicidade não autoriza tratamento
+        comercial irrestrito do dado pessoal da parte.<br />
+        6.3 O número CNJ pode ser armazenado para acompanhar caso de cliente com vínculo lícito, estatística agregada e
+        classificação de movimento.<br />
+        6.4 O CNJ passa a tratar dado pessoal quando usado para localizar nome, telefone, endereço, CPF ou perfil com fim
+        de contato/oferta — o que exige base legal própria (art. 7º da LGPD).<br />
+        6.5 Feitos em segredo de justiça estão fora do objeto.<br />
+        6.7 Captura de tela de tribunal, robôs e contorno de CAPTCHA não são autorizados.</p>
+
+        <p><strong>Cláusula 7 — Finalidades lícitas e vedadas</strong><br />
+        7.1 Lícito, havendo relação com o titular ou base legal: gestão de carteira, controle de prazo, redação de peça,
+        auditoria de baixas, dossiê e estatística agregada sem oferta à parte desconhecida.<br />
+        7.3 Vedado: vender/alugar base de CNJ com nome e telefone, usar andamento público para assédio comercial, imputar
+        endosso do tribunal à oferta, apresentar flag automático como fato confirmado sem leitura humana e reidentificar
+        titular de estatística agregada.</p>
+
+        <p><strong>Cláusula 8 — LGPD: papéis e bases</strong><br />
+        8.1 O licenciado é controlador dos dados da sua carteira; o licenciante é operador ao hospedar a instância em
+        nuvem.<br />
+        8.2 No modo segurança e offline, a guarda concentra-se no licenciado.<br />
+        8.6 Retenção recomendada mínima: 5 anos de metadados de atendimento para feitos encerrados.</p>
+
+        <p><strong>Cláusula 11 — Nível de serviço e limitações técnicas</strong><br />
+        11.1 Sem SLA de 99,9% salvo aditivo escrito; planos gratuitos de nuvem podem suspender por cota ou billing.<br />
+        11.3 WhatsApp não oficial / Evolution API não são homologados pela Meta; risco de banimento é do licenciado.<br />
+        11.4 Backup é dever compartilhado.</p>
+
+        <p><strong>Cláusula 12 — Responsabilidade</strong><br />
+        12.3 Na máxima extensão legal, a responsabilidade por danos indiretos limita-se ao valor pago nos três meses
+        anteriores ao evento, ou a um salário mínimo se o uso for gratuito.<br />
+        12.4 O licenciado indeniza o licenciante por pretensões de terceiros decorrentes de prospecção ilícita, spam,
+        uso de segredo de justiça ou violação de termo de API pública.</p>
+
+        <p><strong>Cláusula 18 — Dados públicos (resumo operacional)</strong><br />
+        18.1 Pode: guardar CNJ de cliente da carteira; consultar DataJud/DJEN para classificar movimento; gerar
+        estatística sem nome; exportar XLSX da própria operação; revisar encerramentos com olho humano.<br />
+        18.2 Não pode: transformar CNJ solto em lista de telemarketing; vender base; furar CAPTCHA de tribunal; tratar
+        feito em sigilo; apresentar heurística como sentença.<br />
+        18.3 Em dúvida, prevalece a interpretação mais protetiva do titular do dado e a consulta ao inteiro teor no sítio
+        oficial do tribunal.</p>
+
+        <p className="text-[11px] text-muted-foreground">
+          Anexo I — Hierarquia de fontes: (A) inteiro teor no tribunal de origem; (B) DJEN/diário oficial; (C) DataJud;
+          (D) ficha humana na Plataforma; (E) heurística e modelo de linguagem. A prevalece sobre B, B sobre C, D sobre
+          E. Encerramento de gabinete não se confunde com baixa no tribunal.
+        </p>
+        <p className="text-[10px] text-muted-foreground">
+          São Paulo/SP, 21 de setembro de 2026 — Davi Alves Figueredo, licenciante (LexisPredict). Aceite eletrônico por
+          login ou uso continuado.
+        </p>
+      </section>
+
       <p className="text-[10px] uppercase font-black opacity-40 pt-6">W1 Capital / Davi Alves Figueredo — LexisPredict — w1capitalassessoria@protonmail.com</p>
     </div>
   );
