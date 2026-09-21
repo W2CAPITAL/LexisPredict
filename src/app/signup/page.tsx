@@ -27,6 +27,7 @@ import {
   economiaAnual,
 } from "@/lib/planos-precos";
 import { cn } from "@/lib/utils";
+import { provisionMinhaEmpresaAction } from "@/app/actions/tenant-provision-actions";
 import {
   ArrowLeft,
   ArrowRight,
@@ -118,6 +119,21 @@ export default function SignupPage() {
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Falha ao criar usuário.");
+
+      // Se o Supabase já devolveu sessão, provisiona o tenant imediatamente.
+      // Se houver confirmação de e-mail e não existir sessão ainda, o mesmo
+      // provisionamento é oferecido no primeiro login em /setup-empresa.
+      if (authData.session) {
+        try {
+          await provisionMinhaEmpresaAction({
+            empresa: nomeEmpresa,
+            nome: nomeUser,
+            plan: form.plan,
+          });
+        } catch {
+          /* fallback seguro: primeiro login conclui o tenant */
+        }
+      }
 
       setDonePending(true);
       setStep(6);
