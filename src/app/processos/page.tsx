@@ -7,9 +7,8 @@ import { CaseGlassList } from '@/components/cases/case-glass-list';
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * Processos da Empresa — todos os perfis usam a página normalmente.
- * Única restrição por cargo: botão "Rodar empresa" (scanner em lote) = Supervisão/Superadmin.
- * Trilha de auditoria: quem atendeu, quem editou, quem apagou.
+ * Processos da Empresa — visão consolidada exclusiva de Supervisor/Superadmin.
+ * Trilha separa atendimento de edição para preservar crédito operacional.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -297,25 +296,15 @@ export default function ProcessosEmpresaPage() {
     try {
       const iso = formatDateToISO(editing.ultimoRetorno) || "";
       const prazoIso = formatDateToISO(editing.proximoPrazo) || editing.proximoPrazo || "";
-      let updated: LegalCase = {
+      const updated: LegalCase = {
         ...editing,
         proximoPrazo: prazoIso,
         statusManual: "Automatico" as any,
         ultimoRetorno: iso || editing.ultimoRetorno,
-        atendido_por:
-          (profile as any)?.auth_user_id ||
-          (profile as any)?.id ||
-          (editing as any).atendido_por,
+        ...patchAuditoriaEdicao(
+          (profile as any)?.auth_user_id || (profile as any)?.id
+        ),
       } as LegalCase;
-      if (iso && (isAtendidoHoje(iso) || isAtendidoNestaSemana(iso))) {
-        updated = {
-          ...updated,
-          ...patchAtendimentoComEdicao(
-            (profile as any)?.auth_user_id || (profile as any)?.id,
-            iso
-          ),
-        } as LegalCase;
-      }
       const payload = { ...updated } as any;
       delete payload.force_transfer_owner;
       delete payload.__transfer_owner;
@@ -325,12 +314,6 @@ export default function ProcessosEmpresaPage() {
         await registrarAuditoriaEventAction("edicao", [editing.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
         });
-        if (iso && isAtendidoHoje(iso)) {
-          await registrarAtendimentoAction([editing.protocolo], {
-            via: "processos-editar",
-            ultimoRetorno: iso,
-          });
-        }
         setEditOpen(false);
         setEditing(null);
         await load();
