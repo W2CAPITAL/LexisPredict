@@ -984,6 +984,16 @@ export async function scanOneDjenAction(protocolo: string) {
 
 export async function runDataJudScanAction(empresaId: string) {
   try {
+    const ctx = await getUserContext();
+    if (!ctx.empresa_id || !ctx.auth_id) {
+      return { success: false, error: 'Sessão expirada.' };
+    }
+    if (!ctx.isSupervisor && !ctx.isSuperAdmin) {
+      return { success: false, error: 'Rodar a empresa inteira exige Supervisor ou Superadmin.' };
+    }
+    if (!ctx.isSuperAdmin && String(empresaId) !== String(ctx.empresa_id)) {
+      return { success: false, error: 'Supervisor só pode operar a própria empresa.' };
+    }
     if (!empresaId) return { success: false, error: 'Missing ID' };
     const { getGlobalPendingProcessesSystem } = await import('@/lib/server-db');
     const LIMIT = 20;
@@ -1178,18 +1188,22 @@ export async function fetchCompanyProcessosAction() {
 }
 
 export async function clearDataJudAuditAction(protocolo: string) {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false };
+  const ctx = await getUserContext();
+  const { empresa_id, auth_id } = ctx;
+  if (!empresa_id || !auth_id) return { success: false };
 
   const admin = await getSupabaseAdmin();
   const { data: dbItem } = await admin
     .from('processos')
-    .select('id, dados, protocolo_ref')
+    .select('id, dados, protocolo_ref, created_by')
     .eq('protocolo_ref', protocolo)
     .eq('empresa_id', empresa_id)
     .maybeSingle();
 
   if (!dbItem) return { success: false };
+  if (!ctx.isSupervisor && !ctx.isSuperAdmin && String(dbItem.created_by || '') !== String(auth_id)) {
+    return { success: false, error: 'Acesso restrito à sua própria carteira.' };
+  }
 
   const patch = {
     tem_atualizacao_pos_retorno: false,
@@ -1381,12 +1395,9 @@ export async function getCumprimentosEProcedentesAction() {
  * Chamado pelo scanner automático ou manualmente pela aba.
  */
 export async function enriquecerProcedenciaAction(protocolo: string) {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false };
-
   try {
-    // Lote5: BOTH + fast:false — DJEN carrega teor da sentença (DataJud sozinho = texto pobre)
-    const res = await auditCaseCoreSystem(protocolo, empresa_id, 'both', {
+    const res = await scanSingleCaseAction(protocolo, {
+      mode: 'both',
       fast: false,
     });
     if (!res || (res as any).success === false) {
@@ -1417,12 +1428,17 @@ export async function enriquecerProcedenciaAction(protocolo: string) {
  * Rápido — ideal antes de exportar ou para popular a aba.
  */
 export async function reclassificarExecutivoCarteiraAction() {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false, updated: 0, error: 'Sem sessão' };
+  const ctx = await getUserContext();
+  const { empresa_id, auth_id } = ctx;
+  if (!empresa_id || !auth_id) return { success: false, updated: 0, error: 'Sem sessão' };
+  if (!canUseAllOperationalFeatures(ctx as any)) {
+    return { success: false, updated: 0, error: 'Função disponível para Administrador, Supervisor ou Superadmin.' };
+  }
 
   try {
     const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
     const admin = await getSupabaseAdmin();
+    const companyWide = !!(ctx.isSupervisor || ctx.isSuperAdmin);
 
     let page = 0;
     const pageSize = 500;
@@ -1431,14 +1447,17 @@ export async function reclassificarExecutivoCarteiraAction() {
     let hits = 0;
 
     while (true) {
-      const { data: rows, error } = await admin
+      let query = admin
         .from('processos')
         .select(
-          'id, protocolo_ref, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
+          'id, protocolo_ref, created_by, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
         )
         .eq('empresa_id', empresa_id)
         .range(page * pageSize, page * pageSize + pageSize - 1);
 
+      if (!companyWide) query = query.eq('created_by', auth_id);
+
+      const { data: rows, error } = await query;
       if (error) throw new Error(error.message);
       if (!rows?.length) break;
 
@@ -1603,7 +1622,10 @@ export async function batchScanExecutivoAction(opts?: {
 }) {
   const ctx = await getUserContext();
   const { empresa_id, auth_id, isMasterView, isSupervisor, isSuperAdmin, cargo } = ctx;
-  if (!empresa_id) return { success: false, done: 0, error: 'Sem sessão' };
+  if (!empresa_id || !auth_id) return { success: false, done: 0, error: 'Sem sessão' };
+  if (!canUseAllOperationalFeatures(ctx as any)) {
+    return { success: false, done: 0, error: 'Função disponível para Administrador, Supervisor ou Superadmin.' };
+  }
 
   const escopoEmpresa = !!(isSuperAdmin || isSupervisor);
   const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 50);
