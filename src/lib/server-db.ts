@@ -1025,31 +1025,206 @@ export async function getEmpresaUsers(): Promise<UserProfile[]> {
 }
 
 export async function createEmpresaUserAction(userData: any) {
-  const { isSuperAdmin, empresa_id } = await getUserContext();
-  if (!isSuperAdmin || !empresa_id) return { success: false, error: 'Permissão insuficiente.' };
+  const ctx = await getUserContext();
+  const { empresa_id, isSupervisor, isSuperAdmin } = ctx;
+  if (!empresa_id || (!isSupervisor && !isSuperAdmin)) {
+    return { success: false, error: 'Apenas Supervisor ou Superadmin gerencia a equipe.' };
+  }
+
+  const requestedRole = String(userData?.cargo || 'Operador') as UserRole;
+  if (requestedRole === 'Superadmin' && !isSuperAdmin) {
+    return { success: false, error: 'Somente Superadmin pode criar outro Superadmin.' };
+  }
+
+  const allowedForSupervisor: UserRole[] = [
+    'Supervisor',
+    'Administrador',
+    'Operador',
+    'Visualizador',
+  ];
+  if (!isSuperAdmin && !allowedForSupervisor.includes(requestedRole)) {
+    return { success: false, error: 'Cargo não permitido para Supervisor.' };
+  }
+
+  const email = String(userData?.email || '').trim().toLowerCase();
+  const password = String(userData?.password || '');
+  const nome = String(userData?.nome || '').trim().toUpperCase();
+
+  if (!email.includes('@')) return { success: false, error: 'E-mail inválido.' };
+  if (password.length < 8) return { success: false, error: 'A senha inicial deve ter ao menos 8 caracteres.' };
+  if (!nome) return { success: false, error: 'Nome obrigatório.' };
+
   const adminClient = await getSupabaseAdmin();
+
   try {
-    const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({ email: userData.email, password: userData.password, email_confirm: true, user_metadata: { full_name: userData.nome } });
-    if (authError) throw authError;
-    const { error: profileError } = await adminClient.from('usuarios').insert({ auth_user_id: authUser.user.id, empresa_id: empresa_id, nome: userData.nome.toUpperCase(), email: userData.email.toLowerCase(), cargo: userData.cargo || 'Operador' });
-    if (profileError) throw profileError;
+    const { data: existing } = await adminClient
+      .from('usuarios')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (existing?.id) {
+      return { success: false, error: 'Já existe um usuário com este e-mail.' };
+    }
+
+    const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: nome },
+      app_metadata: { lexis_commercial: true },
+    });
+    if (authError || !authUser.user) throw authError || new Error('Falha ao criar usuário no Auth.');
+
+    const { error: profileError } = await adminClient.from('usuarios').insert({
+      auth_user_id: authUser.user.id,
+      empresa_id,
+      nome,
+      email,
+      cargo: requestedRole,
+      role:
+        requestedRole === 'Supervisor'
+          ? 'supervisor'
+          : requestedRole === 'Administrador'
+            ? 'admin'
+            : requestedRole === 'Visualizador'
+              ? 'viewer'
+              : requestedRole === 'Superadmin'
+                ? 'superadmin'
+                : 'operator',
+    });
+
+    if (profileError) {
+      try { await adminClient.auth.admin.deleteUser(authUser.user.id); } catch {}
+      throw profileError;
+    }
+
+    try {
+      await adminClient.from('commercial_audit_log').insert({
+        empresa_id,
+        actor_user_id: ctx.auth_id,
+        event: 'team.user_created',
+        payload: { created_auth_user_id: authUser.user.id, email, cargo: requestedRole },
+      });
+    } catch {}
+
     return { success: true };
-  } catch (e: any) { return { success: false, error: e.message }; }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Falha ao criar usuário.' };
+  }
 }
 
 export async function removeEmpresaUser(id: string) {
-  const { empresa_id, isMasterView } = await getUserContext();
-  if (!isMasterView) return { success: false, error: 'Permissão insuficiente.' };
-  const { error } = await supabase.from('usuarios').delete().eq('id', id).eq('empresa_id', empresa_id);
-  return { success: !error, error: error?.message };
+  const ctx = await getUserContext();
+  const { empresa_id, isSupervisor, isSuperAdmin, auth_id } = ctx;
+  if (!empresa_id || (!isSupervisor && !isSuperAdmin)) {
+    return { success: false, error: 'Apenas Supervisor ou Superadmin gerencia a equipe.' };
+  }
+
+  const admin = await getSupabaseAdmin();
+  const { data: target, error: readError } = await admin
+    .from('usuarios')
+    .select('id, auth_user_id, cargo, email')
+    .eq('id', id)
+    .eq('empresa_id', empresa_id)
+    .maybeSingle();
+
+  if (readError) return { success: false, error: readError.message };
+  if (!target) return { success: false, error: 'Usuário não encontrado na empresa.' };
+  if (String(target.auth_user_id || '') === String(auth_id || '')) {
+    return { success: false, error: 'Você não pode revogar o próprio acesso.' };
+  }
+  if (target.cargo === 'Superadmin' && !isSuperAdmin) {
+    return { success: false, error: 'Supervisor não pode remover Superadmin.' };
+  }
+
+  const { error } = await admin
+    .from('usuarios')
+    .delete()
+    .eq('id', id)
+    .eq('empresa_id', empresa_id);
+
+  if (error) return { success: false, error: error.message };
+
+  if (target.auth_user_id) {
+    try { await admin.auth.admin.deleteUser(String(target.auth_user_id)); } catch {}
+  }
+
+  try {
+    await admin.from('commercial_audit_log').insert({
+      empresa_id,
+      actor_user_id: auth_id,
+      event: 'team.user_removed',
+      payload: { removed_user_id: target.auth_user_id, email: target.email, cargo: target.cargo },
+    });
+  } catch {}
+
+  return { success: true };
 }
 
 export async function updateUserRole(userId: string, newRole: UserRole) {
-  const { empresa_id, isSuperAdmin, weight } = await getUserContext();
+  const ctx = await getUserContext();
+  const { empresa_id, isSupervisor, isSuperAdmin, auth_id } = ctx;
+  if (!empresa_id || (!isSupervisor && !isSuperAdmin)) {
+    return { success: false, error: 'Apenas Supervisor ou Superadmin altera cargos.' };
+  }
+
+  if (newRole === 'Superadmin' && !isSuperAdmin) {
+    return { success: false, error: 'Somente Superadmin pode conceder Superadmin.' };
+  }
+
+  const admin = await getSupabaseAdmin();
+  const { data: target, error: readError } = await admin
+    .from('usuarios')
+    .select('id, auth_user_id, cargo')
+    .eq('id', userId)
+    .eq('empresa_id', empresa_id)
+    .maybeSingle();
+
+  if (readError) return { success: false, error: readError.message };
+  if (!target) return { success: false, error: 'Usuário não encontrado na empresa.' };
+  if (String(target.auth_user_id || '') === String(auth_id || '')) {
+    return { success: false, error: 'Altere seu próprio cargo somente pelo Superadmin.' };
+  }
+  if (target.cargo === 'Superadmin' && !isSuperAdmin) {
+    return { success: false, error: 'Supervisor não pode alterar Superadmin.' };
+  }
+
+  const actorWeight = isSuperAdmin ? 100 : 80;
   const targetWeight = ROLE_WEIGHTS[newRole] || 0;
-  if (!isSuperAdmin && weight <= targetWeight) return { success: false, error: 'Autoridade insuficiente.' };
-  const { error } = await supabase.from('usuarios').update({ cargo: newRole }).eq('id', userId).eq('empresa_id', empresa_id);
-  return { success: !error, error: error?.message };
+  if (!isSuperAdmin && actorWeight <= targetWeight && newRole !== 'Supervisor') {
+    return { success: false, error: 'Autoridade insuficiente para esse cargo.' };
+  }
+
+  const role =
+    newRole === 'Supervisor'
+      ? 'supervisor'
+      : newRole === 'Administrador'
+        ? 'admin'
+        : newRole === 'Visualizador'
+          ? 'viewer'
+          : newRole === 'Superadmin'
+            ? 'superadmin'
+            : 'operator';
+
+  const { error } = await admin
+    .from('usuarios')
+    .update({ cargo: newRole, role })
+    .eq('id', userId)
+    .eq('empresa_id', empresa_id);
+
+  if (error) return { success: false, error: error.message };
+
+  try {
+    await admin.from('commercial_audit_log').insert({
+      empresa_id,
+      actor_user_id: auth_id,
+      event: 'team.role_changed',
+      payload: { target_user_id: target.auth_user_id, from: target.cargo, to: newRole },
+    });
+  } catch {}
+
+  return { success: true };
 }
 
 export async function getWhatsAppHistory(phone: string) {
