@@ -50,7 +50,45 @@ function clearSessionCaches() {
   }
 }
 
-const MIN_REFRESH_GAP_MS = 25 * 60 * 1000; // no máximo 1x a cada 25 min
+const MIN_REFRESH_GAP_MS = 25 * 60 * 1000; // refresh de segurança, nunca por troca de aba
+const PROFILE_CACHE_KEY = 'lexis_auth_profile_v1';
+const PROFILE_CACHE_TTL_MS = 30 * 60 * 1000;
+
+function readCachedProfile(userId: string): UserProfile | null {
+  try {
+    const raw = window.sessionStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      parsed.userId !== userId ||
+      !parsed.profile ||
+      Date.now() - Number(parsed.at || 0) > PROFILE_CACHE_TTL_MS
+    ) return null;
+    return parsed.profile as UserProfile;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedProfile(userId: string, profile: UserProfile) {
+  try {
+    window.sessionStorage.setItem(
+      PROFILE_CACHE_KEY,
+      JSON.stringify({ userId, profile, at: Date.now() })
+    );
+  } catch {
+    /* cache best effort */
+  }
+}
+
+function clearCachedProfile() {
+  try {
+    window.sessionStorage.removeItem(PROFILE_CACHE_KEY);
+  } catch {
+    /* */
+  }
+}
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<any | null>(null);
@@ -78,6 +116,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (profileData) {
         setProfile(profileData as UserProfile);
+        writeCachedProfile(userId, profileData as UserProfile);
         try {
           const email = String(profileData.email || '').toLowerCase().trim();
           const secure =
@@ -137,6 +176,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             lastUserId.current = null;
             clearLexisCookies();
             clearSessionCaches();
+            clearCachedProfile();
             setSessionError('Sessão expirada');
             goLogin('expired');
             return false;
@@ -196,9 +236,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (disposed) return;
       const sessionUser = data.session?.user ?? null;
       setUser(sessionUser);
-      setLoading(false); // UI livre já
+      setLoading(false); // getSession é local; não esperar rede para liberar UI
       window.clearTimeout(bootDeadline);
+
       if (sessionUser) {
+        lastRefreshAt.current = Date.now();
+
+        // Hidrata o perfil imediatamente da sessão do navegador e revalida
+        // em background no Supabase. Trocar de aba/recarregar não deve parecer novo login.
+        const cached = readCachedProfile(sessionUser.id);
+        if (cached) setProfile(cached);
+
         loadProfile(sessionUser.id).catch(() => {});
       }
     }).catch(() => {
@@ -217,6 +265,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const sessionUser = session?.user ?? null;
 
       if (event === 'TOKEN_REFRESHED') {
+        lastRefreshAt.current = Date.now();
         if (sessionUser) setUser(sessionUser);
         return;
       }
@@ -227,6 +276,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         lastUserId.current = null;
         clearLexisCookies();
         clearSessionCaches();
+        clearCachedProfile();
         setLoading(false);
         goLogin('signed_out');
         return;
@@ -252,15 +302,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     });
 
-    // Só ao voltar de aba oculta por muito tempo (não a cada clique/focus)
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (Date.now() - lastRefreshAt.current < MIN_REFRESH_GAP_MS) return;
-      refreshSession(false).catch(() => {});
-    };
-    document.addEventListener('visibilitychange', onVisible);
-
-    // Intervalo longo — o SDK já auto-refresh; isto é só rede de segurança
+    // O SDK já faz auto-refresh do token. Não reautenticar ao trocar de aba.
+    // Mantemos apenas uma rede de segurança de baixa frequência.
     const tick = window.setInterval(() => {
       refreshSession(false).catch(() => {});
     }, 45 * 60 * 1000); // rede de segurança a cada 45 min
@@ -269,7 +312,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       disposed = true;
       window.clearTimeout(bootDeadline);
       window.clearInterval(tick);
-      document.removeEventListener('visibilitychange', onVisible);
       subscription.unsubscribe();
     };
   }, [goLogin, loadProfile, refreshSession]);
@@ -286,6 +328,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     lastUserId.current = null;
     clearLexisCookies();
     clearSessionCaches();
+    clearCachedProfile();
     setLoading(false);
     router.replace('/login');
   };
