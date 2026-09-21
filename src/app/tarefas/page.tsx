@@ -298,7 +298,7 @@ export default function TarefasPage() {
     if (!protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(protocolo, { mode: 'djen', fast: false });
+      const res = await scanInteractiveCase(protocolo, { mode: 'djen', fast: false });
       appendScanLog({ cnj: protocolo, motor: 'djen', ok: (res as any)?.success !== false });
       const coms = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       setHistoryResult({
@@ -313,10 +313,19 @@ export default function TarefasPage() {
       if ((res as any).case) {
         setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? (res as any).case! : c)));
       }
+      const djenStatus = (res as any).sourceStatus?.djen;
       toast({
-        title: coms.length ? `DJEN: ${coms.length}` : 'DJEN sem retorno',
-        description: coms.length ? 'Auditoria 3D' : String((res as any).error || 'Sem publicacoes'),
-        variant: coms.length ? 'default' : 'destructive',
+        title: djenStatus?.ok
+          ? coms.length
+            ? `DJEN: ${coms.length} publicação(ões)`
+            : 'DJEN consultado'
+          : 'DJEN indisponível',
+        description: djenStatus?.ok
+          ? coms.length
+            ? `Consulta oficial concluída via ${djenStatus.via === 'browser' ? 'navegador' : 'servidor'}.`
+            : 'Consulta concluída normalmente. Nenhuma publicação foi localizada no período.'
+          : String(djenStatus?.error || (res as any).error || 'Não foi possível consultar o DJEN agora.'),
+        variant: djenStatus?.ok ? 'default' : 'destructive',
       });
     } catch (e: any) {
       toast({ title: 'Falha Auditoria 3D', description: e?.message || 'Erro', variant: 'destructive' });
