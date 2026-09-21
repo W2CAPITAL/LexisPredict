@@ -11,6 +11,10 @@ export type EmpresaPlanoRow = {
   plano_bloqueado?: boolean;
   plano_bloqueio_motivo?: string | null;
   billing_status?: string | null;
+  plan_self_service_unlocked?: boolean;
+  onboarding_completed?: boolean;
+  nav_layout?: "dock" | "vertical" | null;
+  sidebar_compact?: boolean;
 };
 
 export type MinhaAssinaturaResult = {
@@ -21,6 +25,10 @@ export type MinhaAssinaturaResult = {
   blocked?: boolean;
   blockedReason?: string | null;
   billingStatus?: string | null;
+  selfServiceUnlocked?: boolean;
+  onboardingCompleted?: boolean;
+  navLayout?: "dock" | "vertical";
+  sidebarCompact?: boolean;
   setupRequired?: boolean;
   error?: string;
   missingColumns?: boolean;
@@ -46,7 +54,7 @@ export async function getMinhaAssinaturaAction(): Promise<MinhaAssinaturaResult>
 
     const { data, error } = await admin
       .from("empresas")
-      .select("id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status")
+      .select("id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status, plan_self_service_unlocked, onboarding_completed, nav_layout, sidebar_compact")
       .eq("id", empresaId)
       .maybeSingle();
 
@@ -79,6 +87,10 @@ export async function getMinhaAssinaturaAction(): Promise<MinhaAssinaturaResult>
         data.plano_bloqueio_motivo ??
         (blockedByBilling ? billingStatus : null),
       billingStatus: data.billing_status ?? null,
+      selfServiceUnlocked: !!data.plan_self_service_unlocked,
+      onboardingCompleted: !!data.onboarding_completed,
+      navLayout: data.nav_layout === "vertical" ? "vertical" : "dock",
+      sidebarCompact: !!data.sidebar_compact,
       setupRequired: false,
     };
   } catch (e: any) {
@@ -101,6 +113,10 @@ export async function listEmpresasParaPlanosAction(): Promise<EmpresaPlanoRow[]>
         plano_bloqueado: !!mine.blocked,
         plano_bloqueio_motivo: mine.blockedReason ?? null,
         billing_status: mine.billingStatus ?? null,
+        plan_self_service_unlocked: !!mine.selfServiceUnlocked,
+        onboarding_completed: !!mine.onboardingCompleted,
+        nav_layout: mine.navLayout || "dock",
+        sidebar_compact: !!mine.sidebarCompact,
       },
     ];
   }
@@ -116,6 +132,10 @@ export async function listEmpresasParaPlanosAction(): Promise<EmpresaPlanoRow[]>
       plano_bloqueado: !!r.plano_bloqueado,
       plano_bloqueio_motivo: r.plano_bloqueio_motivo ?? null,
       billing_status: r.billing_status ?? null,
+      plan_self_service_unlocked: !!r.plan_self_service_unlocked,
+      onboarding_completed: !!r.onboarding_completed,
+      nav_layout: r.nav_layout === "vertical" ? "vertical" : "dock",
+      sidebar_compact: !!r.sidebar_compact,
     }));
   } catch {
     return [];
@@ -232,6 +252,7 @@ export async function liberarEmpresaPlanoAction(
         plano_bloqueio_motivo: null,
         plano_expira_em: expiresAt,
         billing_status: "active",
+        onboarding_completed: false,
       })
       .eq("id", id)
       .select("id, plano, plano_bloqueado, plano_expira_em")
@@ -313,6 +334,63 @@ export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anu
     const { getSupabaseAdmin } = await import("@/lib/server-db");
     const admin = await getSupabaseAdmin();
     if (!admin) return { ok: false, error: "Service role ausente." };
+
+    const { data: empresa, error: empresaError } = await admin
+      .from("empresas")
+      .select("plan_self_service_unlocked, billing_status")
+      .eq("id", empresaId)
+      .maybeSingle();
+
+    if (empresaError) return { ok: false, error: empresaError.message };
+
+    if (empresa?.plan_self_service_unlocked) {
+      const now = new Date().toISOString();
+
+      const { error: updateError } = await admin
+        .from("empresas")
+        .update({
+          plano: p,
+          plano_bloqueado: false,
+          plano_bloqueio_motivo: null,
+          billing_status: "active",
+        })
+        .eq("id", empresaId);
+
+      if (updateError) return { ok: false, error: updateError.message };
+
+      const { error: assinaturaError } = await admin.from("assinaturas").upsert(
+        {
+          empresa_id: empresaId,
+          plano: p,
+          status: "active",
+          ciclo: "cortesia",
+          provider: "courtesy_token",
+          current_period_start: now,
+          current_period_end: null,
+          updated_at: now,
+        },
+        { onConflict: "empresa_id" }
+      );
+
+      if (assinaturaError) return { ok: false, error: assinaturaError.message };
+
+      try {
+        await admin.from("commercial_audit_log").insert({
+          empresa_id: empresaId,
+          actor_user_id: ctx.auth_id,
+          event: "subscription.self_service_plan_changed",
+          payload: { plan: p, source: "courtesy_entitlement" },
+        });
+      } catch {}
+
+      return {
+        ok: true,
+        pending: false,
+        selfService: true,
+        plan: p,
+        ciclo: "cortesia" as const,
+      };
+    }
 
     const { data: existing } = await admin
       .from("solicitacoes_assinatura")
