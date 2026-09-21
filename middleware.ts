@@ -77,6 +77,7 @@ export async function middleware(request: NextRequest) {
   const isApi = path.startsWith('/api/')
   const isAuthPage = path === '/login' || path === '/signup'
   const isTenantSetupPage = path === '/setup-empresa'
+  const isFirstRunPage = path === '/primeiro-acesso'
   const isStaticFile = /\.[a-z0-9]+$/i.test(path)
   const isPublicApi = starts(path, PUBLIC_API)
   const isPublic = isAuthPage || path.startsWith('/termos') || isPublicApi || isStaticFile
@@ -179,7 +180,7 @@ export async function middleware(request: NextRequest) {
 
         const { data: empresa, error: empresaError } = await client
           .from('empresas')
-          .select('plano, plano_expira_em, plano_bloqueado, billing_status')
+          .select('plano, plano_expira_em, plano_bloqueado, billing_status, onboarding_completed')
           .eq('id', empresaId)
           .maybeSingle()
 
@@ -195,10 +196,23 @@ export async function middleware(request: NextRequest) {
         }
         if (isTenantSetupPage) return redirect('/')
 
+        const billingStatus = String(empresa.billing_status || '').toLowerCase()
+        const billingActive = billingStatus === 'active'
+
+        if (billingActive && !empresa.onboarding_completed) {
+          if (!isFirstRunPage) return redirect('/primeiro-acesso')
+          response.headers.set('Cache-Control', 'private, no-store')
+          return applySecurityHeaders(response)
+        }
+
+        if (isFirstRunPage) {
+          if (!billingActive) return redirect('/settings')
+          return redirect('/')
+        }
+
         const plan = normalizePlanId(empresa.plano || 'essencial')
         const exp = empresa.plano_expira_em ? new Date(empresa.plano_expira_em).getTime() : null
         const expired = exp !== null && Number.isFinite(exp) && exp < Date.now()
-        const billingStatus = String(empresa.billing_status || '')
         const blocked = Boolean(empresa.plano_bloqueado) || ['past_due', 'suspended', 'canceled'].includes(billingStatus)
         const billingBypass = path.startsWith('/settings') || path === '/api/commercial/me'
 
