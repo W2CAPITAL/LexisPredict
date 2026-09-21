@@ -86,14 +86,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, syncRepoCases, registrarAtendimentoAction,
+import { syncRepoCases, registrarAtendimentoAction,
   registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
 import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';
 import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
-import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
+import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -267,12 +267,18 @@ export default function TarefasPage() {
     setLoading(true);
     try {
       const empId = (profile as any)?.empresa_id || null;
+      if (!empId) return;
+
       const _pack = await loadCarteiraComCache({
         fetchNetwork: async () =>
-          (await fetchCarteiraDeduped(() => fetchRepoCases(), {
-            force: false,
-            empresaKey: `${resolveCaseScope(profile as any)}:${empId || '*'}`,
-          })) || [],
+          await fetchCarteiraAllClient({
+            empresaId: empId,
+            pageSize: 300,
+            onPage: (partial, page) => {
+              startTransition(() => setCases(partial));
+              if (page === 0) setLoading(false);
+            },
+          }),
         empresaId: empId,
         scope: resolveCaseScope(profile as any),
         onShow: (data, source) => {
