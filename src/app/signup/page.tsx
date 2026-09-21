@@ -395,7 +395,7 @@ export default function SignupPage() {
                   <div>
                     <h3 className="text-lg font-black">Crie o acesso principal</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Este usuário será a referência inicial da empresa.
+                      Este usuário será a referência inicial da empresa. O e-mail informado será usado para autenticação.
                     </p>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -412,6 +412,12 @@ export default function SignupPage() {
                           placeholder="admin@empresa.com.br"
                         />
                       </div>
+                    </div>
+                    <div className="sm:col-span-2 rounded-2xl border border-sky-500/20 bg-sky-500/5 p-3">
+                      <p className="text-xs font-bold text-sky-800 dark:text-sky-200">Confira o e-mail com atenção</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                        Use um endereço ao qual você tenha acesso. Ele será seu login no LexisPredict. Depois do cadastro, confira também a caixa de entrada, spam e lixo eletrônico para eventuais mensagens de autenticação ou ativação.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="signup-password">Senha</Label>
@@ -669,11 +675,17 @@ export default function SignupPage() {
                   <p className="mt-5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
                     Cadastro concluído
                   </p>
-                  <h2 className="mt-2 text-2xl font-black tracking-tight">Ambiente em configuração</h2>
+                  <h2 className="mt-2 text-2xl font-black tracking-tight">Cadastro concluído</h2>
                   <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
                     Sua conta foi criada para o plano <strong className="text-foreground">{PLAN_LABEL[form.plan]}</strong>.
-                    Se a empresa ainda não aparecer no banco, o sistema mostrará “configuração inicial” — nunca “empresa bloqueada”.
+                    O e-mail <strong className="text-foreground">{form.email}</strong> será usado no login.
                   </p>
+                  <div className="mx-auto mt-4 max-w-lg rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 text-left">
+                    <p className="text-sm font-black text-sky-800 dark:text-sky-200">Confira seu e-mail</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Verifique a caixa de entrada, spam e lixo eletrônico para mensagens de autenticação ou ativação do LexisPredict. Sem token, o acesso operacional só é liberado após a ativação comercial.
+                    </p>
+                  </div>
                   <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
                     <Button asChild className="bg-emerald-600 text-white hover:bg-emerald-700">
                       <a href={commercialWhatsapp} target="_blank" rel="noopener noreferrer">
