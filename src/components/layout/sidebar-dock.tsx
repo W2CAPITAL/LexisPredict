@@ -98,7 +98,11 @@ export function SidebarDock() {
       icon,
     })),
     isSuperAdmin ? "maximo" : plan,
-  ).filter((item) => role !== "Operador" || operatorRouteAllowed(item.href));
+  ).filter(
+    (item) =>
+      (item.href !== "/processos" || isSupervisor) &&
+      (role !== "Operador" || operatorRouteAllowed(item.href)),
+  );
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
