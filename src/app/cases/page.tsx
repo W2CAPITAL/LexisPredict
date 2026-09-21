@@ -43,7 +43,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
+import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
@@ -387,7 +388,7 @@ function CasesContent() {
     setLoading(true);
     try {
       // Auditoria 3D: so DJEN (rapido)
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: false });
+      const res = await scanInteractiveCase(c.protocolo, { mode: 'djen', fast: false });
       const coms = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       setHistoryResult({
         case: (res as any).case || c,
@@ -401,12 +402,19 @@ function CasesContent() {
       if ((res as any).casePatch) {
         updateCaseByProtocolo(c.protocolo, ((res as any).casePatch as Record<string, any>) || {});
       }
+      const djenStatus = (res as any).sourceStatus?.djen;
       toast({
-        title: coms.length ? `DJEN: ${coms.length} publicacao(oes)` : 'DJEN sem retorno',
-        description: coms.length
-          ? 'Auditoria 3D (somente diario oficial).'
-          : String((res as any).error || 'Sem publicacoes no periodo ou falha de rede.'),
-        variant: coms.length ? 'default' : 'destructive',
+        title: djenStatus?.ok
+          ? coms.length
+            ? `DJEN: ${coms.length} publicação(ões)`
+            : 'DJEN consultado'
+          : 'DJEN indisponível',
+        description: djenStatus?.ok
+          ? coms.length
+            ? `Consulta oficial concluída via ${djenStatus.via === 'browser' ? 'navegador' : 'servidor'}.`
+            : 'Consulta concluída normalmente. Nenhuma publicação foi localizada no período.'
+          : String(djenStatus?.error || (res as any).error || 'Não foi possível consultar o DJEN agora.'),
+        variant: djenStatus?.ok ? 'default' : 'destructive',
       });
     } catch (e: any) {
       toast({ title: 'Falha Auditoria 3D', description: e?.message || 'Erro DJEN', variant: 'destructive' });
@@ -421,7 +429,7 @@ function CasesContent() {
     setAiDraft(null);
     try {
       // Auditoria unificada: DataJud + DJEN (obrigatorio para Sugerir resposta)
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: false });
+      const res = await scanInteractiveCase(c.protocolo, { mode: 'both', fast: false });
       const movimentos = normalizeMovList((res as any).movimentos);
       const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       const caseData = (res as any).case || c;
@@ -462,14 +470,25 @@ function CasesContent() {
       if ((res as any).casePatch) {
         updateCaseByProtocolo(c.protocolo, (res as any).casePatch || {});
       }
+      const sourceStatus = (res as any).sourceStatus;
+      const anySourceOk = !!(sourceStatus?.datajud?.ok || sourceStatus?.djen?.ok);
       toast({
         title: suggestions.length
           ? `${suggestions.length} resposta(s) pronta(s)`
-          : 'Auditoria unificada',
-        description: movimentos.length || comunicacoes.length
-          ? `${movimentos.length} mov. DataJud · ${comunicacoes.length} DJEN`
-          : ((res as any).error || (res as any).message || 'Sem movimentos — timeout, 403 geo ou CNJ ausente no índice. Tente de novo (não use fast).'),
-        variant: movimentos.length || comunicacoes.length ? 'default' : 'destructive',
+          : anySourceOk
+            ? 'Auditoria concluída'
+            : 'Fontes temporariamente indisponíveis',
+        description:
+          (res as any).message ||
+          [
+            sourceStatus?.datajud?.ok
+              ? `DataJud: ${movimentos.length} movimento(s)`
+              : 'DataJud indisponível',
+            sourceStatus?.djen?.ok
+              ? `DJEN: ${comunicacoes.length} publicação(ões)`
+              : 'DJEN indisponível',
+          ].join(' · '),
+        variant: anySourceOk ? 'default' : 'destructive',
       });
     } catch (e: any) {
       toast({
