@@ -222,6 +222,13 @@ export async function middleware(request: NextRequest) {
             : redirect('/settings')
         }
 
+        const awaitingActivation = billingStatus === 'pending'
+        if (awaitingActivation && !billingBypass) {
+          return isApi
+            ? json({ ok: false, error: 'subscription_pending' }, 402)
+            : redirect('/settings')
+        }
+
         if (!isApi && !billingBypass && !hrefLiberado(path, plan)) {
           return redirect('/settings')
         }
