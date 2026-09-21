@@ -149,10 +149,14 @@ export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: str
     if (!data) {
       return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito" };
     }
-    await admin.from("assinaturas").upsert(
-      { empresa_id: id, plano: normalizePlanId((data as any).plano || "essencial"), status: "suspended", updated_at: new Date().toISOString() },
-      { onConflict: "empresa_id" }
-    ).then(() => undefined).catch(() => undefined);
+    try {
+      await admin.from("assinaturas").upsert(
+        { empresa_id: id, plano: normalizePlanId((data as any).plano || "essencial"), status: "suspended", updated_at: new Date().toISOString() },
+        { onConflict: "empresa_id" }
+      );
+    } catch {
+      // espelho de assinatura é best-effort; o estado da empresa já foi persistido.
+    }
     return { ok: true, persisted: true, blocked: true };
   } catch (e: any) {
     return { ok: false, persisted: false, error: e?.message || "falha" };
@@ -196,26 +200,32 @@ export async function liberarEmpresaPlanoAction(
     if (!data) {
       return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito" };
     }
-    await admin.from("assinaturas").upsert(
-      {
-        empresa_id: id,
-        plano: p,
-        status: "active",
-        ciclo: "manual",
-        provider: "manual",
-        current_period_start: new Date().toISOString(),
-        current_period_end: expiresAt,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "empresa_id" }
-    ).then(() => undefined).catch(() => undefined);
-    await admin
-      .from("solicitacoes_assinatura")
-      .update({ status: "approved", decided_at: new Date().toISOString(), decided_by: ctx.auth_id })
-      .eq("empresa_id", id)
-      .eq("status", "pending")
-      .then(() => undefined)
-      .catch(() => undefined);
+    try {
+      await admin.from("assinaturas").upsert(
+        {
+          empresa_id: id,
+          plano: p,
+          status: "active",
+          ciclo: "manual",
+          provider: "manual",
+          current_period_start: new Date().toISOString(),
+          current_period_end: expiresAt,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "empresa_id" }
+      );
+    } catch {
+      // espelho de assinatura é best-effort; o estado da empresa já foi persistido.
+    }
+    try {
+      await admin
+        .from("solicitacoes_assinatura")
+        .update({ status: "approved", decided_at: new Date().toISOString(), decided_by: ctx.auth_id })
+        .eq("empresa_id", id)
+        .eq("status", "pending");
+    } catch {
+      // aprovação pendente também é best-effort.
+    }
     return {
       ok: true,
       persisted: true,
