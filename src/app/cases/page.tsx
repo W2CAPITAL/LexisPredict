@@ -70,6 +70,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo';
 import { descreverPrazo } from '@/lib/prazos-cpc';
+import { resolveCaseScope } from '@/lib/roles';
 
 const CaseRow = React.memo(({ 
   c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest, onDossie,
@@ -296,7 +297,7 @@ function CasesContent() {
       await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
         empresaId: empId,
-        scope: "mine",
+        scope: resolveCaseScope(profile as any),
         onShow: (data) => { if (Array.isArray(data)) setCases(data); },
         allowStaleKpiFallback: true,
       });
