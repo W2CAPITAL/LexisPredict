@@ -391,56 +391,16 @@ export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anu
       };
     }
 
-    const { data: existing } = await admin
-      .from("solicitacoes_assinatura")
-      .select("id")
-      .eq("empresa_id", empresaId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existing?.id) {
-      const { error } = await admin
-        .from("solicitacoes_assinatura")
-        .update({
-          plano: p,
-          ciclo: c,
-          solicitado_por: ctx.auth_id,
-          observacao: "Alteração de plano solicitada pelo painel",
-        })
-        .eq("id", existing.id);
-      if (error) return { ok: false, error: error.message };
-      return { ok: true, pending: true, requestId: existing.id, plan: p, ciclo: c };
-    }
-
-    const { data, error } = await admin
-      .from("solicitacoes_assinatura")
-      .insert({
-        empresa_id: empresaId,
-        solicitado_por: ctx.auth_id,
-        plano: p,
-        ciclo: c,
-        status: "pending",
-        observacao: "Alteração de plano solicitada pelo painel",
-      })
-      .select("id")
-      .single();
-
-    if (error) return { ok: false, error: error.message };
-
-    try {
-      await admin.from("commercial_audit_log").insert({
-        empresa_id: empresaId,
-        actor_user_id: ctx.auth_id,
-        event: "subscription.change_requested",
-        payload: { plan: p, ciclo: c },
-      });
-    } catch {
-      /* auditoria comercial best-effort */
-    }
-
-    return { ok: true, pending: true, requestId: data?.id, plan: p, ciclo: c };
+    // Sem token, nenhuma troca é registrada ou executada pelo app.
+    // O proprietário precisa aprovar manualmente após contato via WhatsApp.
+    return {
+      ok: true,
+      pending: false,
+      requiresOwnerApproval: true,
+      ownerWhatsapp: "5513991199349",
+      plan: p,
+      ciclo: c,
+    };
   } catch (e: any) {
     return { ok: false, error: e?.message || "Falha." };
   }
