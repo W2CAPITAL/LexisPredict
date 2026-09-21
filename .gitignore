@@ -1,28 +1,191 @@
-# Firebase build and deployment files
-/firebase-debug.log
-/firebase-debug.*.log
+# =============================================================================
+# LexisPredict Commercial
+# Next.js + TypeScript + pnpm + Supabase + Vercel
+# Firebase remains only as optional/legacy tooling.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Dependencies / package managers
+# -----------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+
+.pnp
+.pnp.*
+.pnpm-store/
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+
+# Lockfiles are intentionally NOT ignored.
+# Keep pnpm-lock.yaml / package-lock.json / yarn.lock versioned.
+
+# -----------------------------------------------------------------------------
+# Next.js / Vercel / build output
+# -----------------------------------------------------------------------------
+.next/
+out/
+dist/
+build/
+.open-next/
+.vercel/
+.turbo/
+.swc/
+
+next-env.d.ts
+*.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# Tests / coverage
+# -----------------------------------------------------------------------------
+coverage/
+.nyc_output/
+.vitest/
+playwright-report/
+test-results/
+blob-report/
+
+# -----------------------------------------------------------------------------
+# Environment variables / secrets
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# Private keys / certificates / service-account credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+
+service-account*.json
+service_account*.json
+credentials*.json
+secrets*.json
+*-firebase-adminsdk-*.json
+
+# -----------------------------------------------------------------------------
+# Supabase local state
+# Keep supabase/migrations/** and supabase/config.toml versioned.
+# -----------------------------------------------------------------------------
+.supabase/
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+supabase/.env.*
+!supabase/.env.example
+!supabase/.env.*.example
+
+# -----------------------------------------------------------------------------
+# Firebase local/generated state
+# -----------------------------------------------------------------------------
+firebase-debug.log
+firebase-debug.*.log
+firebase-*.zip
+.firebase/
+emulator-ui/
+hosting/.cache/
+
+# Current project treats Firebase deployment configuration as local/legacy.
 .firebaserc
-
-# Firebase Hosting
 /firebase.json
-*.cache
-hosting/.cache
 
-# Firebase Functions
-/functions/node_modules/
+# Firebase Functions local secrets/build state
 /functions/.env
-/functions/package-lock.json
+/functions/.env.*
+!/functions/.env.example
+!/functions/.env.*.example
 
-# Firebase Emulators
-/firebase-*.zip
-/.firebase/
-/emulator-ui/
+# -----------------------------------------------------------------------------
+# Large local databases / indexes
+# Never send local client datasets to GitHub or Vercel.
+# -----------------------------------------------------------------------------
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.lidx
 
+/data/
+/datasets/
+/bases/
+/local-data/
+/private-data/
+/uploads/
+
+# -----------------------------------------------------------------------------
+# Runtime / temporary files
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+.tmp/
+.cache/
+*.cache
+*.pid
+*.pid.lock
+*.seed
+*.retry
+
+# -----------------------------------------------------------------------------
 # Logs
+# -----------------------------------------------------------------------------
 *.log
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Environment files (local configs)
-/.env.*
+# -----------------------------------------------------------------------------
+# Editor / IDE
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*~
+
+# -----------------------------------------------------------------------------
+# OS generated files
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+
+# -----------------------------------------------------------------------------
+# Local artifacts / generated exports
+# -----------------------------------------------------------------------------
+artifacts/
+.local/
+local/
+downloads/
+
+# Keep examples/placeholders explicitly versionable when needed.
+!.gitkeep
