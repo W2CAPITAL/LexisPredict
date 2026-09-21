@@ -64,7 +64,7 @@ import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
-import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
@@ -116,19 +116,14 @@ export default function Dashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      try {
-        const { invalidateCarteiraCache } = await import('@/lib/session-carteira-cache');
-        invalidateCarteiraCache();
-      } catch { /* */ }
-      try {
-        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
-        invalidateCarteiraClientCache();
-      } catch { /* */ }
       const cachedRun = await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
         empresaId: (profile as any)?.empresa_id || null,
         scope: caseScope,
-        onShow: (caseData) => { if (Array.isArray(caseData)) setCases(caseData); },
+        onShow: (caseData, source) => {
+          if (Array.isArray(caseData)) setCases(caseData);
+          if (source === 'cache') setLoading(false);
+        },
         allowStaleKpiFallback: true,
       });
       const caseData = cachedRun.cases;
