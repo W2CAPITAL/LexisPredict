@@ -10,81 +10,112 @@ export type EmpresaPlanoRow = {
   plano_expira_em?: string | null;
   plano_bloqueado?: boolean;
   plano_bloqueio_motivo?: string | null;
+  billing_status?: string | null;
 };
 
-/** Assinatura da empresa do usuário logado (fonte de verdade no banco). */
-export async function getMinhaAssinaturaAction(): Promise<{
+export type MinhaAssinaturaResult = {
   ok: boolean;
   empresaId?: string;
   plan?: PlanId;
   expiresAt?: string | null;
   blocked?: boolean;
   blockedReason?: string | null;
+  billingStatus?: string | null;
+  setupRequired?: boolean;
   error?: string;
   missingColumns?: boolean;
-}> {
+};
+
+/** Assinatura da empresa do usuário logado (fonte de verdade no banco). */
+export async function getMinhaAssinaturaAction(): Promise<MinhaAssinaturaResult> {
   try {
     const ctx = await getUserContext();
     const empresaId = String(ctx?.empresa_id || "").trim();
-    if (!empresaId) return { ok: false, error: "Sem empresa" };
+
+    if (!empresaId) {
+      return {
+        ok: false,
+        setupRequired: true,
+        error: "Empresa ainda não vinculada ao perfil.",
+      };
+    }
 
     const { getSupabaseAdmin } = await import("@/lib/server-db");
     const admin = await getSupabaseAdmin();
-    if (!admin) return { ok: false, error: "Sem admin client" };
+    if (!admin) return { ok: false, error: "Cliente administrativo indisponível." };
 
     const { data, error } = await admin
       .from("empresas")
-      .select("id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo")
+      .select("id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status")
       .eq("id", empresaId)
       .maybeSingle();
 
     if (error) {
       const msg = String(error.message || "");
       const missing =
-        /plano_bloqueado|plano_expira|column .* does not exist/i.test(msg);
+        /plano_bloqueado|plano_expira|billing_status|column .* does not exist/i.test(msg);
       return { ok: false, error: msg, missingColumns: missing, empresaId };
     }
+
+    if (!data) {
+      return {
+        ok: false,
+        empresaId,
+        setupRequired: true,
+        error: "Empresa ainda não cadastrada no Supabase.",
+      };
+    }
+
+    const billingStatus = String(data.billing_status || "").trim().toLowerCase();
+    const blockedByBilling = ["past_due", "suspended", "canceled"].includes(billingStatus);
 
     return {
       ok: true,
       empresaId,
-      plan: data?.plano ? normalizePlanId(data.plano) : "essencial",
-      expiresAt: data?.plano_expira_em ?? null,
-      blocked: !!data?.plano_bloqueado,
-      blockedReason: data?.plano_bloqueio_motivo ?? null,
+      plan: data.plano ? normalizePlanId(data.plano) : "essencial",
+      expiresAt: data.plano_expira_em ?? null,
+      blocked: !!data.plano_bloqueado || blockedByBilling,
+      blockedReason:
+        data.plano_bloqueio_motivo ??
+        (blockedByBilling ? billingStatus : null),
+      billingStatus: data.billing_status ?? null,
+      setupRequired: false,
     };
   } catch (e: any) {
-    return { ok: false, error: e?.message || "falha" };
+    return { ok: false, error: e?.message || "Falha ao consultar assinatura." };
   }
 }
 
 export async function listEmpresasParaPlanosAction(): Promise<EmpresaPlanoRow[]> {
   const ctx = await getUserContext();
+
   if (!ctx?.isSuperAdmin) {
-    const id = String(ctx?.empresa_id || "");
-    if (!id) return [];
     const mine = await getMinhaAssinaturaAction();
+    if (!mine.ok || !mine.empresaId) return [];
     return [
       {
-        id,
+        id: mine.empresaId,
         nome: "Minha empresa",
         plano: mine.plan,
         plano_expira_em: mine.expiresAt ?? null,
         plano_bloqueado: !!mine.blocked,
         plano_bloqueio_motivo: mine.blockedReason ?? null,
+        billing_status: mine.billingStatus ?? null,
       },
     ];
   }
+
   try {
     const { listAllEmpresasSystem } = await import("@/lib/server-db");
     const rows = await listAllEmpresasSystem();
     return (rows || []).map((r: any) => ({
       id: String(r.id),
       nome: String(r.nome || r.id),
-      plano: r.plano ? normalizePlanId(r.plano) : undefined,
+      plano: r.plano ? normalizePlanId(r.plano) : "essencial",
       plano_expira_em: r.plano_expira_em ?? null,
       plano_bloqueado: !!r.plano_bloqueado,
       plano_bloqueio_motivo: r.plano_bloqueio_motivo ?? null,
+      billing_status: r.billing_status ?? null,
     }));
   } catch {
     return [];
@@ -98,11 +129,13 @@ export async function salvarPlanoEmpresaAction(empresaId: string, plan: PlanId) 
   }
   const id = String(empresaId || "").trim();
   const p = normalizePlanId(plan);
-  if (!id) return { ok: false, persisted: false, error: "empresa inválida" };
+  if (!id) return { ok: false, persisted: false, error: "Empresa inválida." };
+
   try {
     const { getSupabaseAdmin } = await import("@/lib/server-db");
     const admin = await getSupabaseAdmin();
-    if (!admin) return { ok: false, persisted: false, error: "Service role ausente" };
+    if (!admin) return { ok: false, persisted: false, error: "Service role ausente." };
+
     const { error } = await admin.from("empresas").update({ plano: p }).eq("id", id);
     if (error) {
       return {
@@ -115,19 +148,22 @@ export async function salvarPlanoEmpresaAction(empresaId: string, plan: PlanId) 
     }
     return { ok: true, persisted: true, plan: p };
   } catch (e: any) {
-    return { ok: false, persisted: false, error: e?.message || "falha", plan: p };
+    return { ok: false, persisted: false, error: e?.message || "Falha.", plan: p };
   }
 }
 
 export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: string) {
   const ctx = await getUserContext();
-  if (!ctx?.isSuperAdmin) return { ok: false, persisted: false, error: "Só Superadmin" };
+  if (!ctx?.isSuperAdmin) return { ok: false, persisted: false, error: "Só Superadmin." };
+
   const id = String(empresaId || "").trim();
-  if (!id) return { ok: false, persisted: false, error: "empresa inválida" };
+  if (!id) return { ok: false, persisted: false, error: "Empresa inválida." };
+
   try {
     const { getSupabaseAdmin } = await import("@/lib/server-db");
     const admin = await getSupabaseAdmin();
-    if (!admin) return { ok: false, persisted: false, error: "Service role ausente (SUPABASE_SERVICE_ROLE_KEY)" };
+    if (!admin) return { ok: false, persisted: false, error: "Service role ausente." };
+
     const { data, error } = await admin
       .from("empresas")
       .update({
@@ -138,6 +174,7 @@ export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: str
       .eq("id", id)
       .select("id, plano, plano_bloqueado")
       .maybeSingle();
+
     if (error) {
       return {
         ok: false,
@@ -147,19 +184,26 @@ export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: str
       };
     }
     if (!data) {
-      return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito" };
+      return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito." };
     }
+
     try {
       await admin.from("assinaturas").upsert(
-        { empresa_id: id, plano: normalizePlanId((data as any).plano || "essencial"), status: "suspended", updated_at: new Date().toISOString() },
+        {
+          empresa_id: id,
+          plano: normalizePlanId((data as any).plano || "essencial"),
+          status: "suspended",
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: "empresa_id" }
       );
     } catch {
-      // espelho de assinatura é best-effort; o estado da empresa já foi persistido.
+      /* espelho best-effort */
     }
+
     return { ok: true, persisted: true, blocked: true };
   } catch (e: any) {
-    return { ok: false, persisted: false, error: e?.message || "falha" };
+    return { ok: false, persisted: false, error: e?.message || "Falha." };
   }
 }
 
@@ -169,14 +213,17 @@ export async function liberarEmpresaPlanoAction(
   expiresAt: string
 ) {
   const ctx = await getUserContext();
-  if (!ctx?.isSuperAdmin) return { ok: false, persisted: false, error: "Só Superadmin" };
+  if (!ctx?.isSuperAdmin) return { ok: false, persisted: false, error: "Só Superadmin." };
+
   const id = String(empresaId || "").trim();
   const p = normalizePlanId(plan);
-  if (!id) return { ok: false, persisted: false, error: "empresa inválida" };
+  if (!id) return { ok: false, persisted: false, error: "Empresa inválida." };
+
   try {
     const { getSupabaseAdmin } = await import("@/lib/server-db");
     const admin = await getSupabaseAdmin();
-    if (!admin) return { ok: false, persisted: false, error: "Service role ausente" };
+    if (!admin) return { ok: false, persisted: false, error: "Service role ausente." };
+
     const { data, error } = await admin
       .from("empresas")
       .update({
@@ -189,6 +236,7 @@ export async function liberarEmpresaPlanoAction(
       .eq("id", id)
       .select("id, plano, plano_bloqueado, plano_expira_em")
       .maybeSingle();
+
     if (error) {
       return {
         ok: false,
@@ -198,8 +246,9 @@ export async function liberarEmpresaPlanoAction(
       };
     }
     if (!data) {
-      return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito" };
+      return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito." };
     }
+
     try {
       await admin.from("assinaturas").upsert(
         {
@@ -215,17 +264,23 @@ export async function liberarEmpresaPlanoAction(
         { onConflict: "empresa_id" }
       );
     } catch {
-      // espelho de assinatura é best-effort; o estado da empresa já foi persistido.
+      /* espelho best-effort */
     }
+
     try {
       await admin
         .from("solicitacoes_assinatura")
-        .update({ status: "approved", decided_at: new Date().toISOString(), decided_by: ctx.auth_id })
+        .update({
+          status: "approved",
+          decided_at: new Date().toISOString(),
+          decided_by: ctx.auth_id,
+        })
         .eq("empresa_id", id)
         .eq("status", "pending");
     } catch {
-      // aprovação pendente também é best-effort.
+      /* aprovação pendente best-effort */
     }
+
     return {
       ok: true,
       persisted: true,
@@ -234,15 +289,17 @@ export async function liberarEmpresaPlanoAction(
       blocked: false,
     };
   } catch (e: any) {
-    return { ok: false, persisted: false, error: e?.message || "falha" };
+    return { ok: false, persisted: false, error: e?.message || "Falha." };
   }
 }
-
 
 export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anual") {
   const ctx = await getUserContext();
   const empresaId = String(ctx?.empresa_id || "").trim();
-  if (!empresaId) return { ok: false, error: "Sem empresa" };
+  if (!empresaId) {
+    return { ok: false, setupRequired: true, error: "Cadastre ou vincule uma empresa antes de escolher o plano." };
+  }
+
   const pode =
     !!(ctx as any)?.isSuperAdmin ||
     !!(ctx as any)?.isAdministrador ||
@@ -255,7 +312,7 @@ export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anu
   try {
     const { getSupabaseAdmin } = await import("@/lib/server-db");
     const admin = await getSupabaseAdmin();
-    if (!admin) return { ok: false, error: "Service role ausente" };
+    if (!admin) return { ok: false, error: "Service role ausente." };
 
     const { data: existing } = await admin
       .from("solicitacoes_assinatura")
@@ -269,7 +326,12 @@ export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anu
     if (existing?.id) {
       const { error } = await admin
         .from("solicitacoes_assinatura")
-        .update({ plano: p, ciclo: c, solicitado_por: ctx.auth_id, observacao: "Alteração de plano solicitada pelo painel" })
+        .update({
+          plano: p,
+          ciclo: c,
+          solicitado_por: ctx.auth_id,
+          observacao: "Alteração de plano solicitada pelo painel",
+        })
         .eq("id", existing.id);
       if (error) return { ok: false, error: error.message };
       return { ok: true, pending: true, requestId: existing.id, plan: p, ciclo: c };
@@ -287,17 +349,22 @@ export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anu
       })
       .select("id")
       .single();
+
     if (error) return { ok: false, error: error.message };
 
-    await admin.from("commercial_audit_log").insert({
-      empresa_id: empresaId,
-      actor_user_id: ctx.auth_id,
-      event: "subscription.change_requested",
-      payload: { plan: p, ciclo: c },
-    });
+    try {
+      await admin.from("commercial_audit_log").insert({
+        empresa_id: empresaId,
+        actor_user_id: ctx.auth_id,
+        event: "subscription.change_requested",
+        payload: { plan: p, ciclo: c },
+      });
+    } catch {
+      /* auditoria comercial best-effort */
+    }
 
     return { ok: true, pending: true, requestId: data?.id, plan: p, ciclo: c };
   } catch (e: any) {
-    return { ok: false, error: e?.message || "falha" };
+    return { ok: false, error: e?.message || "Falha." };
   }
 }
