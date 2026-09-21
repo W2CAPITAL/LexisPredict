@@ -92,7 +92,7 @@ import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';
-import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -266,17 +266,19 @@ export default function TarefasPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      try { invalidateCarteiraCache(); } catch { /* */ }
-      try {
-        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
-        invalidateCarteiraClientCache();
-      } catch { /* */ }
       const empId = (profile as any)?.empresa_id || null;
       const _pack = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases(), { force: true })) || [],
+        fetchNetwork: async () =>
+          (await fetchCarteiraDeduped(() => fetchRepoCases(), {
+            force: false,
+            empresaKey: `${resolveCaseScope(profile as any)}:${empId || '*'}`,
+          })) || [],
         empresaId: empId,
         scope: resolveCaseScope(profile as any),
-        onShow: (data) => { if (Array.isArray(data)) startTransition(() => setCases(data)); },
+        onShow: (data, source) => {
+          if (Array.isArray(data)) startTransition(() => setCases(data));
+          if (source === 'cache') setLoading(false);
+        },
         allowStaleKpiFallback: true,
       });
       const data = _pack.cases;
@@ -285,10 +287,6 @@ export default function TarefasPage() {
         if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
       } catch { /* */ }
       if (Array.isArray(data)) setCases(data);
-      // Cache de outra sessão/empresa zerando a fila no browser: força rede limpa
-      if (Array.isArray(data) && data.length === 0) {
-        try { invalidateCarteiraCache(); } catch { /* */ }
-      }
     } finally { setLoading(false); }
   }, [profile]);
 
