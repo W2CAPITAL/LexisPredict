@@ -16,6 +16,7 @@ import {
   economiaAnual,
 } from "@/lib/planos-precos";
 import { trocarMeuPlanoAction } from "@/app/actions/planos-actions";
+import { activateCourtesyPlanAction } from "@/app/actions/commercial-signup-actions";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight,
@@ -24,6 +25,7 @@ import {
   CheckCircle2,
   Clock3,
   Crown,
+  KeyRound,
   Loader2,
   Minus,
   ShieldCheck,
@@ -33,6 +35,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const PLAN_STYLE: Record<PlanId, {
   accent: string;
@@ -91,6 +95,9 @@ export function PlanosEmpresaPanel() {
   const { toast } = useToast();
   const [ciclo, setCiclo] = useState<"mensal" | "anual">("mensal");
   const [busy, setBusy] = useState<PlanId | null>(null);
+  const [courtesyToken, setCourtesyToken] = useState("");
+  const [courtesyPlan, setCourtesyPlan] = useState<PlanId>(plan);
+  const [courtesyBusy, setCourtesyBusy] = useState(false);
 
   const currentPlan: PlanId = isSuperAdmin ? "maximo" : plan;
   const canChange = !!(isAdmin || isSuperAdmin) && !setupRequired;
@@ -154,6 +161,43 @@ export function PlanosEmpresaPanel() {
       });
     } finally {
       setBusy(null);
+    }
+  };
+
+
+  const onActivateCourtesy = async () => {
+    if (!canChange) {
+      toast({
+        title: "Sem permissão",
+        description: "Só administrador da empresa pode liberar plano por token.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!courtesyToken.trim()) {
+      toast({ title: "Informe o token de liberação." });
+      return;
+    }
+
+    setCourtesyBusy(true);
+    try {
+      const result = await activateCourtesyPlanAction(courtesyToken, courtesyPlan);
+      if (!result.ok) {
+        toast({
+          title: "Token não aceito",
+          description: result.error || "Não foi possível liberar o plano.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Plano liberado sem cobrança",
+        description: PLAN_LABEL[result.plan] + " foi ativado para esta empresa.",
+      });
+      setCourtesyToken("");
+      window.setTimeout(() => window.location.reload(), 450);
+    } finally {
+      setCourtesyBusy(false);
     }
   };
 
@@ -250,6 +294,61 @@ export function PlanosEmpresaPanel() {
               ) : null}
             </div>
           ) : null}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-[24px] border border-violet-500/20 bg-card shadow-sm">
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-700 dark:text-violet-300">
+              <KeyRound className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+                Liberação especial
+              </p>
+              <h3 className="mt-1 text-lg font-black tracking-tight">Ativar plano com token</h3>
+              <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
+                Use um token autorizado para liberar o plano selecionado sem cobrança. O token é validado no servidor e não é armazenado.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid w-full gap-2 sm:grid-cols-[150px_minmax(220px,1fr)_auto] lg:max-w-2xl">
+            <select
+              value={courtesyPlan}
+              onChange={(e) => setCourtesyPlan(e.target.value as PlanId)}
+              disabled={!canChange || courtesyBusy}
+              className="h-10 rounded-xl border bg-background px-3 text-sm font-semibold outline-none ring-offset-background focus:ring-2 focus:ring-ring"
+              aria-label="Plano para liberação por token"
+            >
+              {PLAN_IDS.map((id) => (
+                <option key={id} value={id}>{PLAN_LABEL[id]}</option>
+              ))}
+            </select>
+            <Input
+              type="password"
+              value={courtesyToken}
+              onChange={(e) => setCourtesyToken(e.target.value)}
+              placeholder="Token de liberação"
+              autoComplete="off"
+              disabled={!canChange || courtesyBusy}
+              className="h-10 rounded-xl"
+            />
+            <Button
+              type="button"
+              onClick={() => void onActivateCourtesy()}
+              disabled={!canChange || courtesyBusy || !courtesyToken.trim()}
+              className="h-10 bg-violet-600 font-semibold text-white hover:bg-violet-700"
+            >
+              {courtesyBusy ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <KeyRound className="mr-2 h-4 w-4" />
+              )}
+              Liberar
+            </Button>
+          </div>
         </div>
       </div>
 
