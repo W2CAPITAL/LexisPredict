@@ -796,89 +796,121 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   return { success: true };
 }
 
-export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: string, isAdmin = false): Promise<{ success: boolean; message: string }> {
+export async function saveStoredCasesForEmpresa(
+  cases: LegalCase[],
+  empresaId: string,
+  _isAdmin = false
+): Promise<{ success: boolean; message: string }> {
   try {
-    const { auth_id } = await getUserContext();
-    const client = isAdmin ? await getSupabaseAdmin() : (supabase || (await getSupabaseAdmin()));
-    if (!client) return { success: false, message: 'Cliente indisponível.' };
+    const ctx = await getUserContext();
+    const { auth_id, isMasterView } = ctx;
+    if (!auth_id || !ctx.empresa_id) {
+      return { success: false, message: 'Sessão expirada.' };
+    }
+    if (ctx.empresa_id !== empresaId) {
+      return { success: false, message: 'Acesso à empresa não autorizado.' };
+    }
 
-    const protos = (cases || []).map((c) => c.protocolo).filter(Boolean);
+    const admin = await getSupabaseAdmin();
+    const protos = (cases || []).map((item) => String(item.protocolo || '').trim()).filter(Boolean);
     const ownerByProto = new Map<string, string>();
+
     if (protos.length) {
-      const chunk = 200;
-      for (let i = 0; i < protos.length; i += chunk) {
-        const slice = protos.slice(i, i + chunk);
-        const { data: rows } = await client
+      const size = 200;
+      for (let i = 0; i < protos.length; i += size) {
+        const slice = protos.slice(i, i + size);
+        const { data: rows, error } = await admin
           .from('processos')
           .select('protocolo_ref, created_by')
           .eq('empresa_id', empresaId)
           .in('protocolo_ref', slice);
-        for (const r of rows || []) {
-          if (r.created_by) ownerByProto.set(String(r.protocolo_ref), String(r.created_by));
+
+        if (error) throw error;
+        for (const row of rows || []) {
+          if (row.created_by) {
+            ownerByProto.set(String(row.protocolo_ref), String(row.created_by));
+          }
         }
       }
     }
 
-    const payload = (cases || []).map((c) => {
-      const owner =
-        ownerByProto.get(String(c.protocolo)) ||
-        (c as any).created_by ||
-        auth_id ||
-        null;
-      return {
+    const denied: string[] = [];
+    const payload = (cases || []).flatMap((item) => {
+      const protocolo = String(item.protocolo || '').trim();
+      if (!protocolo) return [];
+
+      const existingOwner = ownerByProto.get(protocolo) || null;
+      if (!isMasterView && existingOwner && existingOwner !== auth_id) {
+        denied.push(protocolo);
+        return [];
+      }
+
+      const owner = isMasterView
+        ? existingOwner || String((item as any).created_by || auth_id)
+        : auth_id;
+
+      return [{
         empresa_id: empresaId,
-        // Só envia created_by se ainda não existe dono no banco (insert)
-        ...(ownerByProto.has(String(c.protocolo))
-          ? {}
-          : owner
-            ? { created_by: owner }
-            : {}),
-        protocolo_ref: c.protocolo,
-        advogado: c.advogado || 'NÃO ATRIBUÍDO',
-        escritorio: c.escritorio || null,
-        status: c.status || 'Sem Prazo',
-        risco: (c as any).risco || 'Normal',
-        proximo_retorno: formatDateToISO(c.proximoPrazo),
-        ultimo_retorno: formatDateToISO(c.ultimoRetorno),
-        tribunal: c.tribunal || 'Outros',
-        telefone: c.telefone || '',
-        observacoes: c.observacao || '',
-        datajud_ultimo_movimento: c.datajud_ultimo_movimento,
-        datajud_ultimo_nome: c.datajud_ultimo_nome,
-        datajud_consultado_em: c.datajud_consultado_em,
-        tem_atualizacao_pos_retorno: !!c.tem_atualizacao_pos_retorno,
-        datajud_encerrado_tribunal: !!c.datajud_encerrado_tribunal,
-        datajud_encerrado_motivo: c.datajud_encerrado_motivo,
-        datajud_hash: c.datajud_hash || null,
-        indicio_busca_apreensao: !!c.indicio_busca_apreensao,
-        busca_apreensao_confianca: c.busca_apreensao_confianca,
-        busca_apreensao_motivo: c.busca_apreensao_motivo,
-        busca_apreensao_consultado_em: c.busca_apreensao_consultado_em,
-        em_cumprimento_sentenca: !!c.em_cumprimento_sentenca,
-        cumprimento_sentenca_motivo: c.cumprimento_sentenca_motivo,
-        cumprimento_sentenca_consultado_em: c.cumprimento_sentenca_consultado_em,
-        djen_nova_comunicacao: !!c.djen_nova_comunicacao,
-        djen_ultimo_resumo: c.djen_ultimo_resumo,
-        djen_ultimo_link: c.djen_ultimo_link,
-        djen_ultima_data: c.djen_ultima_data,
-        dados: { ...c, created_by: owner },
-      };
+        ...(existingOwner ? {} : { created_by: owner }),
+        protocolo_ref: protocolo,
+        advogado: item.advogado || 'NÃO ATRIBUÍDO',
+        escritorio: item.escritorio || null,
+        status: item.status || 'Sem Prazo',
+        risco: (item as any).risco || 'Normal',
+        proximo_retorno: formatDateToISO(item.proximoPrazo),
+        ultimo_retorno: formatDateToISO(item.ultimoRetorno),
+        tribunal: item.tribunal || 'Outros',
+        telefone: item.telefone || '',
+        observacoes: item.observacao || '',
+        datajud_ultimo_movimento: item.datajud_ultimo_movimento,
+        datajud_ultimo_nome: item.datajud_ultimo_nome,
+        datajud_consultado_em: item.datajud_consultado_em,
+        tem_atualizacao_pos_retorno: !!item.tem_atualizacao_pos_retorno,
+        datajud_encerrado_tribunal: !!item.datajud_encerrado_tribunal,
+        datajud_encerrado_motivo: item.datajud_encerrado_motivo,
+        datajud_hash: item.datajud_hash || null,
+        indicio_busca_apreensao: !!item.indicio_busca_apreensao,
+        busca_apreensao_confianca: item.busca_apreensao_confianca,
+        busca_apreensao_motivo: item.busca_apreensao_motivo,
+        busca_apreensao_consultado_em: item.busca_apreensao_consultado_em,
+        em_cumprimento_sentenca: !!item.em_cumprimento_sentenca,
+        cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo,
+        cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em,
+        djen_nova_comunicacao: !!item.djen_nova_comunicacao,
+        djen_ultimo_resumo: item.djen_ultimo_resumo,
+        djen_ultimo_link: item.djen_ultimo_link,
+        djen_ultima_data: item.djen_ultima_data,
+        dados: { ...item, created_by: owner },
+      }];
     });
+
+    if (!payload.length && denied.length) {
+      return {
+        success: false,
+        message: 'Os processos informados pertencem a outro usuário da empresa.',
+      };
+    }
 
     const chunkSize = 50;
     for (let i = 0; i < payload.length; i += chunkSize) {
       const chunk = payload.slice(i, i + chunkSize);
-      // upsert sem created_by quando já existe: Postgres upsert replaces columns sent —
-      // por isso omitimos created_by se já há dono (mapa).
-      const { error: upsertError } = await client
+      const { error: upsertError } = await admin
         .from('processos')
         .upsert(chunk, { onConflict: 'protocolo_ref, empresa_id' });
       if (upsertError) throw upsertError;
     }
 
-    return { success: true, message: "Sincronia concluída." };
+    return {
+      success: true,
+      message: denied.length
+        ? `Sincronia concluída. ${denied.length} processo(s) de outros usuários foram ignorados.`
+        : 'Sincronia concluída.',
+    };
   } catch (error: any) {
-    return { success: false, message: error.message || "Erro desconhecido no repositório." };
+    return {
+      success: false,
+      message: error.message || 'Erro desconhecido no repositório.',
+    };
   }
 }
 
