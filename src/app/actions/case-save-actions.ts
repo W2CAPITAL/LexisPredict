@@ -84,7 +84,7 @@ function canAccessExistingCase(
   row: Record<string, any> | null
 ): boolean {
   if (!row) return true;
-  if (resolveCaseScope(ctx as any) === 'company') return true;
+  if (resolveCaseScope(ctx as any) === 'empresa') return true;
   if (!ctx.auth_id) return false;
   const owner = String(row.created_by || row.dados?.created_by || '').trim();
   return !!owner && owner === String(ctx.auth_id);
