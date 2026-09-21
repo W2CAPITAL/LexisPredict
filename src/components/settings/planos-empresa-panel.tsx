@@ -406,21 +406,12 @@ export function PlanosEmpresaPanel() {
                     "Plano atual"
                   ) : (
                     <>
-                      {selfServiceUnlocked ? (
-                        <>
-                          Mudar plano agora
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
-                      ) : (
-                        <>
-                          <MessageCircle className="mr-2 h-4 w-4" />
-                          {tipo === "upgrade"
-                            ? "Pedir upgrade no WhatsApp"
-                            : tipo === "downgrade"
-                              ? "Pedir downgrade no WhatsApp"
-                              : "Pedir alteração no WhatsApp"}
-                        </>
-                      )}
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      {tipo === "upgrade"
+                        ? "Solicitar upgrade"
+                        : tipo === "downgrade"
+                          ? "Solicitar downgrade"
+                          : "Solicitar alteração"}
                     </>
                   )}
                 </button>
@@ -493,12 +484,10 @@ export function PlanosEmpresaPanel() {
         <div className="rounded-2xl border bg-card p-4">
           <div className="flex items-center gap-2">
             <Clock3 className="h-4 w-4 text-primary" />
-            <p className="text-sm font-bold">{selfServiceUnlocked ? "Planos livres por token" : "Ativação controlada"}</p>
+            <p className="text-sm font-bold">Ativação controlada</p>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            {selfServiceUnlocked
-              ? "Como um token já foi validado, administradores podem mudar o plano imediatamente."
-              : "Sem token, qualquer upgrade ou downgrade deve ser solicitado ao proprietário pelo WhatsApp (13) 99119-9349."}
+            Upgrade ou downgrade cria uma solicitação pendente. O plano só muda após aprovação comercial ou ação do Superadmin.
           </p>
         </div>
         <div className="rounded-2xl border bg-card p-4">
@@ -514,9 +503,7 @@ export function PlanosEmpresaPanel() {
 
       <p className="text-xs leading-relaxed text-muted-foreground">
         {profile?.email ? "Conta: " + profile.email + ". " : ""}
-        {selfServiceUnlocked
-          ? " Esta empresa possui autogestão de planos liberada por token."
-          : " Sem token, upgrade ou downgrade só pode ser solicitado ao proprietário no WhatsApp (13) 99119-9349."}
+        Alterações de assinatura são auditadas e dependem de aprovação comercial. O tenant e os dados permanecem os mesmos.
       </p>
     </section>
   );
