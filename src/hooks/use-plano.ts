@@ -29,6 +29,7 @@ const CLEAN_FALLBACK: AssinaturaStatus = {
 
 type CommercialState = Awaited<ReturnType<typeof getMinhaAssinaturaAction>>;
 const PLAN_STATE_TTL_MS = 2 * 60 * 1000;
+const VALIDATED_LOCAL_TTL_MS = 2 * 60 * 1000;
 const planStateCache = new Map<string, { at: number; value: CommercialState }>();
 const planStateInflight = new Map<string, Promise<CommercialState>>();
 
@@ -171,9 +172,15 @@ export function usePlano() {
       return;
     }
 
-    // A empresa mudou ou acabou de ser carregada: invalida qualquer estado
-    // comercial anterior até o servidor responder para este tenant.
-    setServerLoaded(false);
+    // Em reload/navegação interna, um status recentemente confirmado pode
+    // liberar a UI imediatamente enquanto revalidamos em background.
+    const cachedAss = getAssinatura(empresaId, CLEAN_FALLBACK);
+    const hasFreshValidatedCache =
+      cachedAss.origem === "server" &&
+      typeof cachedAss.validatedAt === "number" &&
+      Date.now() - cachedAss.validatedAt < VALIDATED_LOCAL_TTL_MS;
+
+    setServerLoaded(hasFreshValidatedCache);
     setServerError(null);
 
     let live = true;
@@ -201,6 +208,7 @@ export function usePlano() {
         blocked: !!res.blocked,
         blockedReason: res.blockedReason || undefined,
         origem: "server",
+        validatedAt: Date.now(),
       };
 
       setSetupRequired(false);
