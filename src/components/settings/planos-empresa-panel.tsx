@@ -91,6 +91,7 @@ export function PlanosEmpresaPanel() {
     setupRequired,
     serverError,
     selfServiceUnlocked,
+    billingStatus,
   } = usePlano();
   const { profile, isAdmin, isSuperAdmin } = useAdmin();
   const { toast } = useToast();
@@ -114,11 +115,13 @@ export function PlanosEmpresaPanel() {
 
   const status = setupRequired
     ? { label: "Configuração inicial", className: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20" }
-    : isBlocked
-      ? { label: "Suspenso", className: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20" }
-      : isExpired
-        ? { label: "Expirado", className: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20" }
-        : { label: "Ativo", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20" };
+    : billingStatus === "pending"
+      ? { label: "Aguardando ativação", className: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20" }
+      : isBlocked
+        ? { label: "Suspenso", className: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20" }
+        : isExpired
+          ? { label: "Expirado", className: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20" }
+          : { label: "Ativo", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20" };
 
   const maxSaving = useMemo(
     () => Math.max(...PLAN_IDS.map((id) => economiaAnual(id))),
