@@ -63,7 +63,7 @@ import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
-import { fetchRepoCases } from '@/app/actions/case-actions';
+import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
 import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
@@ -116,9 +116,20 @@ export default function Dashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const empId = (profile as any)?.empresa_id || null;
+      if (!empId) return;
+
       const cachedRun = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchRepoCases()) || [],
-        empresaId: (profile as any)?.empresa_id || null,
+        fetchNetwork: async () =>
+          await fetchCarteiraAllClient({
+            empresaId: empId,
+            pageSize: 300,
+            onPage: (partial, page) => {
+              if (page === 0) setLoading(false);
+              setCases(partial);
+            },
+          }),
+        empresaId: empId,
         scope: caseScope,
         onShow: (caseData, source) => {
           if (Array.isArray(caseData)) setCases(caseData);
