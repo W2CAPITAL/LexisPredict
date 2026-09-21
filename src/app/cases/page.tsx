@@ -1156,7 +1156,7 @@ function CasesContent() {
               <Button
                 size="sm"
                 onClick={handleNewCase}
-                className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-primary hover:text-black"
+                className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black !text-white hover:bg-primary hover:!text-black"
               >
                 <Plus size={16} className="mr-2" />
                 Novo Processo
@@ -1307,8 +1307,8 @@ function CasesContent() {
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
           <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
-            <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
-              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3">
+            <DialogHeader className="p-4 sm:p-6 bg-black !text-white shrink-0">
+              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3 !text-white">
                 <FileSearch className="text-primary" /> Auditoria Unificada (Audit 3D)
               </DialogTitle>
             </DialogHeader>
@@ -1322,7 +1322,7 @@ function CasesContent() {
                         <div key={i} className={cn("relative p-5 border-2 rounded-xl transition-all", item.type === 'djen' ? "border-blue-600 bg-blue-50/10 shadow-[4px_4px_0px_#2563eb]" : "border-slate-200 bg-slate-50/50")}>
                           <div className="flex items-start justify-between mb-3">
                              <div className="flex items-center gap-2">
-                                <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
+                                <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600 !text-white" : "bg-slate-600 !text-white")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
                                 {item.type === 'djen' && (
                                   <div className="flex items-center gap-2 flex-wrap">
                                     {(item.raw.link || historyResult?.case.djen_ultimo_link) && (
@@ -1338,7 +1338,7 @@ function CasesContent() {
                                         try {
                                           const texto = (item.raw.texto || item.raw.conteudo || historyResult?.case.djen_ultimo_resumo || '').toString();
                                           const res = await generateDjenPublicationPDFAction({
-                                            titulo: item.raw.tipoComunicacao || item.raw.tipoDocumento || item.title || 'PUBLICAÇÃO DJEN',
+                                            titulo: item.title || item.raw.tipoDocumento || item.raw.tipoComunicacao || 'PUBLICAÇÃO DJEN',
                                             protocolo: historyResult?.case.protocolo || '',
                                             data: item.date ? item.date.toLocaleDateString('pt-BR') : 'S/D',
                                             orgao: item.raw.nomeOrgao || item.subtitle || '',
@@ -1364,7 +1364,7 @@ function CasesContent() {
                                         try {
                                           const texto = (item.raw.texto || item.raw.conteudo || historyResult?.case.djen_ultimo_resumo || '').toString();
                                           const res = await generateDjenPublicationPDFAction({
-                                            titulo: item.raw.tipoComunicacao || item.raw.tipoDocumento || item.title || 'PUBLICAÇÃO DJEN',
+                                            titulo: item.title || item.raw.tipoDocumento || item.raw.tipoComunicacao || 'PUBLICAÇÃO DJEN',
                                             protocolo: historyResult?.case.protocolo || '',
                                             data: item.date ? item.date.toLocaleDateString('pt-BR') : 'S/D',
                                             orgao: item.raw.nomeOrgao || item.subtitle || '',
@@ -1445,10 +1445,10 @@ function CasesContent() {
                   <section className="space-y-6 pt-6 border-t">
                     <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Rascunho opcional (IA)</h3>
                     <div className="bg-black text-white p-6 space-y-4 rounded-xl">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Só gera se você clicar — não mistura com Sugerir Resposta</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest !text-white flex items-center gap-2"><Bot size={12}/> Só gera se você clicar — não mistura com Sugerir Resposta</p>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                          <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-10 bg-white/10 border-white/20 !text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-white border-2 border-black rounded-lg">
                             <SelectItem value="local_only" className="text-[9px] font-black uppercase">Script Lexis (sem IA)</SelectItem>
                             <SelectItem value="claude" className="text-[9px] font-black uppercase">Claude AI (OmniRoute)</SelectItem>
@@ -1464,7 +1464,7 @@ function CasesContent() {
                   </section>
                 </div>
               </ScrollArea>
-              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
+              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black !text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
             </div>
           </DialogContent>
         </Dialog>
