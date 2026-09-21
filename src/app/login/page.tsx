@@ -15,6 +15,7 @@ import {
   Mail,
   ShieldCheck,
   Sparkles,
+  TestTube2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -22,6 +23,7 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getTenantBrand } from "@/lib/tenant-brand";
 import Link from "next/link";
+import { enableGuestMode } from "@/lib/guest-mode";
 
 const brand = getTenantBrand();
 
@@ -55,6 +57,15 @@ export default function LoginPage() {
 
     return () => clearTimeout(safetyTimeout);
   }, [user, profile, authLoading, router]);
+
+  const enterGuest = () => {
+    enableGuestMode();
+    toast({
+      title: "Modo convidado ativado",
+      description: "Você pode testar o app. Alterações ficam somente neste navegador e não são salvas no Supabase.",
+    });
+    window.location.replace("/");
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,12 +148,12 @@ export default function LoginPage() {
             {logoAsset ? (
               <Image src={logoAsset.imageUrl} alt="LexisPredict" width={58} height={58} className="object-contain" />
             ) : (
-              <ShieldCheck className="h-8 w-8 text-primary" />
+              <ShieldCheck className="h-8 w-8 text-sky-600" />
             )}
           </div>
           <h1 className="mt-6 text-2xl font-black tracking-tight">Acesso confirmado</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Preparando o ambiente da sua empresa…</p>
-          <Loader2 className="mt-6 h-6 w-6 animate-spin text-primary" />
+          <p className="mt-2 text-sm text-slate-500">Preparando o ambiente da sua empresa…</p>
+          <Loader2 className="mt-6 h-6 w-6 animate-spin text-sky-600" />
         </div>
       </div>
     );
@@ -151,7 +162,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background p-3 sm:p-5">
       <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] overflow-hidden rounded-[30px] border bg-card shadow-2xl lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[1.08fr_.92fr]">
-        <section className="relative hidden overflow-hidden border-r bg-[#07111f] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
+        <section className="relative hidden overflow-hidden border-r bg-[#07111f] p-10 !text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
           <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-cyan-400/15 blur-[120px]" />
           <div className="absolute -bottom-28 right-0 h-[28rem] w-[28rem] rounded-full bg-violet-500/20 blur-[140px]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,255,255,.08),transparent_35%)]" />
@@ -166,7 +177,7 @@ export default function LoginPage() {
                 )}
               </div>
               <div>
-                <p className="font-black tracking-tight">{brand.name || "LexisPredict"}</p>
+                <p className="font-black tracking-tight !text-white">{brand.name || "LexisPredict"}</p>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/45">Commercial SaaS</p>
               </div>
             </div>
@@ -176,7 +187,7 @@ export default function LoginPage() {
                 <Sparkles className="h-3.5 w-3.5" />
                 Legal operations platform
               </span>
-              <h1 className="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.04em] xl:text-6xl">
+              <h1 className="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.04em] !text-white xl:text-6xl">
                 Operação jurídica com dados, automação e controle em tempo real.
               </h1>
               <p className="mt-6 max-w-xl text-base leading-relaxed text-white/60">
@@ -202,7 +213,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <main className="relative flex items-center justify-center bg-background p-5 sm:p-8 lg:p-12">
+        <main className="relative flex items-center justify-center bg-white p-5 text-slate-950 sm:p-8 lg:p-12">
           <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-primary/5 blur-3xl" />
           <div className="relative w-full max-w-md">
             <div className="mb-8 lg:hidden">
@@ -211,23 +222,23 @@ export default function LoginPage() {
                   {logoAsset ? (
                     <Image src={logoAsset.imageUrl} alt="LexisPredict" width={36} height={36} className="object-contain" />
                   ) : (
-                    <ShieldCheck className="h-5 w-5 text-primary" />
+                    <ShieldCheck className="h-5 w-5 text-sky-600" />
                   )}
                 </div>
                 <div>
                   <p className="font-black">{brand.name || "LexisPredict"}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Commercial SaaS</p>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-500">Commercial SaaS</p>
                 </div>
               </div>
             </div>
 
             <div className="mb-8">
-              <span className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+              <span className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-sky-600">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Acesso seguro
               </span>
               <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Entrar no LexisPredict</h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-sm leading-relaxed text-slate-500">
                 Use as credenciais da sua empresa para abrir o ambiente e as permissões do seu plano.
               </p>
             </div>
@@ -236,13 +247,13 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-xs font-bold">E-mail</Label>
                 <div className="group relative">
-                  <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                  <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-sky-600" />
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-12 rounded-xl bg-background pl-11"
+                    className="h-12 rounded-xl border-slate-200 bg-white pl-11 text-slate-950 placeholder:text-slate-400"
                     required
                     placeholder="voce@empresa.com.br"
                     autoComplete="email"
@@ -253,13 +264,13 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-xs font-bold">Senha</Label>
                 <div className="group relative">
-                  <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                  <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-sky-600" />
                   <Input
                     id="password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 rounded-xl bg-background pl-11"
+                    className="h-12 rounded-xl border-slate-200 bg-white pl-11 text-slate-950 placeholder:text-slate-400"
                     required
                     placeholder="••••••••"
                     autoComplete="current-password"
@@ -270,7 +281,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting || authLoading}
-                className="h-12 w-full rounded-xl font-bold"
+                className="h-12 w-full rounded-xl bg-slate-950 font-bold text-white hover:bg-slate-800"
               >
                 {isSubmitting ? (
                   <>
@@ -284,17 +295,36 @@ export default function LoginPage() {
                   </>
                 )}
               </Button>
+
+              <div className="relative my-1 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">ou</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={enterGuest}
+                className="h-12 w-full rounded-xl border-sky-200 bg-sky-50 font-bold text-sky-800 hover:bg-sky-100 hover:text-sky-900"
+              >
+                <TestTube2 className="mr-2 h-4 w-4" />
+                Entrar como convidado
+              </Button>
+              <p className="text-center text-[11px] leading-relaxed text-slate-500">
+                Modo demonstração: navegação completa e dados temporários somente no cache deste navegador. Nada é gravado no Supabase.
+              </p>
             </form>
 
             <div className="mt-6 rounded-2xl border bg-muted/20 p-4">
               <div className="flex items-start gap-3">
-                <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                 <div>
                   <p className="text-sm font-bold">Primeira empresa?</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
                     Crie o tenant, escolha o plano e conclua a ativação comercial pelo fluxo de cadastro.
                   </p>
-                  <Link href="/signup" className="mt-3 inline-flex items-center text-xs font-bold text-primary hover:underline">
+                  <Link href="/signup" className="mt-3 inline-flex items-center text-xs font-bold text-sky-600 hover:underline">
                     Criar conta empresarial
                     <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                   </Link>
@@ -302,7 +332,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <p className="mt-8 text-center text-[10px] leading-relaxed text-muted-foreground">
+            <p className="mt-8 text-center text-[10px] leading-relaxed text-slate-500">
               Ao entrar, você acessa apenas os dados e módulos vinculados à sua empresa.
             </p>
           </div>
