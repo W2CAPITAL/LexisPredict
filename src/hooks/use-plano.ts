@@ -16,6 +16,13 @@ import {
 import { getMinhaAssinaturaAction } from "@/app/actions/planos-actions";
 import { invalidateCarteiraCache, clearScanProgress } from "@/lib/session-carteira-cache";
 
+const CLEAN_FALLBACK: AssinaturaStatus = {
+  plan: "essencial",
+  expiresAt: null,
+  blocked: false,
+  origem: "fallback",
+};
+
 export function usePlano() {
   const { profile, isSuperAdmin } = useAdmin();
   const empresaId = profile?.empresa_id || "";
@@ -24,26 +31,28 @@ export function usePlano() {
     empresaId ? planoDaEmpresa(empresaId, "essencial") : "essencial"
   );
   const [ass, setAss] = useState<AssinaturaStatus>(() =>
-    getAssinatura(empresaId, { plan: "essencial", expiresAt: null, blocked: true })
+    getAssinatura(empresaId, CLEAN_FALLBACK)
   );
   const [serverLoaded, setServerLoaded] = useState(false);
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
   const blockedRef = useRef(false);
 
   useEffect(() => {
-    const local = getAssinatura(empresaId, { plan: "essencial", expiresAt: null, blocked: true });
+    const local = getAssinatura(empresaId, CLEAN_FALLBACK);
     setPlan(planoDaEmpresa(empresaId, local.plan || "essencial"));
     setAss(local);
     blockedRef.current = !!local.blocked;
-    const u1 = subscribeEmpresaPlanos(() => {
+
+    const syncLocal = () => {
+      const next = getAssinatura(empresaId, CLEAN_FALLBACK);
+      setAss(next);
       setPlan(planoDaEmpresa(empresaId, "essencial"));
-      setAss(getAssinatura(empresaId, { plan: "essencial", expiresAt: null, blocked: true }));
-    });
-    const u2 = subscribeAssinaturas(() => {
-      const a = getAssinatura(empresaId, { plan: "essencial", expiresAt: null, blocked: true });
-      setAss(a);
-      setPlan(planoDaEmpresa(empresaId, "essencial"));
-      blockedRef.current = !!a.blocked;
-    });
+      blockedRef.current = !!next.blocked;
+    };
+
+    const u1 = subscribeEmpresaPlanos(syncLocal);
+    const u2 = subscribeAssinaturas(syncLocal);
     return () => {
       u1();
       u2();
@@ -51,22 +60,42 @@ export function usePlano() {
   }, [empresaId]);
 
   useEffect(() => {
-    if (!empresaId) {
+    if (isSuperAdmin) {
+      setSetupRequired(false);
+      setServerError(null);
       setServerLoaded(true);
       return;
     }
+
+    if (!empresaId) {
+      setSetupRequired(!!profile);
+      setServerError(profile ? "Empresa ainda não vinculada ao perfil." : null);
+      setServerLoaded(true);
+      setAss(CLEAN_FALLBACK);
+      setPlan("essencial");
+      return;
+    }
+
     let live = true;
 
     const pull = async () => {
-      // Aba oculta: não gasta rede
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
 
-      const res = await getMinhaAssinaturaAction().catch(() => null);
+      let res: Awaited<ReturnType<typeof getMinhaAssinaturaAction>> | null = null;
+      try {
+        res = await getMinhaAssinaturaAction();
+      } catch {
+        res = null;
+      }
       if (!live) return;
+
       if (!res?.ok) {
+        setSetupRequired(!!res?.setupRequired);
+        setServerError(res?.error || "Não foi possível consultar a assinatura.");
         setServerLoaded(true);
         return;
       }
+
       const next: AssinaturaStatus = {
         plan: normalizePlanId(res.plan || "essencial"),
         expiresAt: res.expiresAt ?? null,
@@ -74,15 +103,20 @@ export function usePlano() {
         blockedReason: res.blockedReason || undefined,
         origem: "server",
       };
+
+      setSetupRequired(false);
+      setServerError(null);
       blockedRef.current = next.blocked;
+
       if (next.blocked) {
         try {
           invalidateCarteiraCache();
           clearScanProgress();
         } catch {
-          /* */
+          /* cache best effort */
         }
       }
+
       saveAssinatura(empresaId, next);
       savePlanoEmpresa(empresaId, next.plan, {
         expiresAt: next.expiresAt,
@@ -95,18 +129,16 @@ export function usePlano() {
       setServerLoaded(true);
     };
 
-    pull();
+    void pull();
 
-    // Só revalida periodicamente se estiver bloqueado (liberação do Superadmin).
-    // Plano ok: só no mount + ao voltar à aba.
     const id = window.setInterval(() => {
-      if (blockedRef.current || isExpired(getAssinatura(empresaId).expiresAt)) {
-        pull();
+      if (blockedRef.current || isExpired(getAssinatura(empresaId, CLEAN_FALLBACK).expiresAt)) {
+        void pull();
       }
     }, 60_000);
 
     const onVis = () => {
-      if (document.visibilityState === "visible") pull();
+      if (document.visibilityState === "visible") void pull();
     };
     document.addEventListener("visibilitychange", onVis);
 
@@ -115,11 +147,11 @@ export function usePlano() {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [empresaId]);
+  }, [empresaId, profile, isSuperAdmin]);
 
   const left = daysLeft(ass.expiresAt);
-  const expired = !isSuperAdmin && isExpired(ass.expiresAt);
-  const blocked = !isSuperAdmin && !!ass.blocked;
+  const expired = !isSuperAdmin && !setupRequired && isExpired(ass.expiresAt);
+  const blocked = !isSuperAdmin && !setupRequired && !!ass.blocked;
   const locked = blocked || expired;
 
   return useMemo(
@@ -133,16 +165,19 @@ export function usePlano() {
       isExpired: expired,
       isBlocked: blocked,
       isLocked: locked,
+      setupRequired,
+      serverError,
       serverLoaded,
       isMaximo: plan === "maximo" || isSuperAdmin,
       canHref: (href: string) => {
         if (isSuperAdmin) return true;
+        if (setupRequired) return href.startsWith("/settings") || href === "/onboarding";
         if (locked) {
           return href.startsWith("/settings") || href === "/" || href.startsWith("/superadmin");
         }
         return hrefLiberado(href, plan);
       },
     }),
-    [plan, empresaId, ass, left, expired, blocked, locked, isSuperAdmin, serverLoaded]
+    [plan, empresaId, ass, left, expired, blocked, locked, setupRequired, serverError, isSuperAdmin, serverLoaded]
   );
 }
