@@ -326,12 +326,25 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     }
     if (existing?.protocolo_ref) processed.protocolo = existing.protocolo_ref;
 
-    const previousReturn = String(existing?.ultimo_retorno || existing?.UltimoRetorno || existing?.dados?.ultimoRetorno || existing?.dados?.ultimo_retorno || '');
-    const currentReturn = String(processed.ultimoRetorno || processed.ultimo_retorno || '');
+    // Edição de campo, inclusive ultimo_retorno, NÃO é atendimento.
+    // Crédito de atendimento só nasce em fluxo explícito (__force_atendido)
+    // ou em registrarAtendimentoCompletoAction.
     const forceAtendido = (caseData as any).__force_atendido === true;
-    if (auth_id && (forceAtendido || (currentReturn && currentReturn !== previousReturn))) {
+    if (auth_id && forceAtendido) {
       processed.atendido_por = auth_id;
       processed.atendido_em = new Date().toISOString();
+    } else if (existing) {
+      // Preserva o crédito anterior sem transferi-lo para quem apenas editou.
+      processed.atendido_por =
+        existing.atendido_por ??
+        existing.dados?.atendido_por ??
+        processed.atendido_por ??
+        null;
+      processed.atendido_em =
+        existing.atendido_em ??
+        existing.dados?.atendido_em ??
+        processed.atendido_em ??
+        null;
     }
 
     let actorName = String((ctx as any).nome || (ctx as any).name || (ctx as any).email || '').trim();
