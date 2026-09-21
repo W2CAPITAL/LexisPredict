@@ -1,0 +1,94 @@
+/* Contraste legivel SEM bloquear fundo custom / wallpaper — Enhanced */
+
+html:not(.dark) .text-foreground,
+html.light .text-foreground,
+html:not(.dark) .text-card-foreground,
+html.light .text-card-foreground {
+  color: hsl(var(--foreground, 222 47% 11%));
+}
+
+html:not(.dark) .text-muted-foreground,
+html.light .text-muted-foreground {
+  color: hsl(var(--muted-foreground, 215 16% 35%));
+}
+
+/* Fundo solido quando NAO ha wallpaper */
+html:not(.dark):not(.lexis-wallpaper-active) body,
+html.light:not(.lexis-wallpaper-active) body {
+  color: hsl(var(--foreground, 222 47% 11%));
+  background-color: hsl(var(--background, 210 40% 98%));
+}
+
+/* Cards: nunca texto branco em fundo claro */
+html:not(.dark) [data-efferd-kpi] .text-white,
+html:not(.dark) [data-admin-card] .text-white,
+html:not(.dark) .bg-card .text-white,
+html.light [data-efferd-kpi] .text-white,
+html.light [data-admin-card] .text-white,
+html.light .bg-card .text-white {
+  color: hsl(var(--foreground, 222 47% 11%)) !important;
+}
+
+html:not(.dark) [data-efferd-kpi] [class*="opacity-40"],
+html:not(.dark) [data-efferd-kpi] [class*="opacity-30"],
+html:not(.dark) [data-admin-card] [class*="opacity-40"],
+html.light [data-efferd-kpi] [class*="opacity-40"],
+html.light [data-admin-card] [class*="opacity-40"] {
+  opacity: 1 !important;
+}
+
+html:not(.dark) [data-efferd-kpi] .uppercase,
+html:not(.dark) [data-admin-card] .uppercase,
+html.light [data-efferd-kpi] .uppercase,
+html.light [data-admin-card] .uppercase {
+  color: hsl(var(--muted-foreground, 215 16% 35%)) !important;
+}
+
+html:not(.dark) [role="dialog"],
+html:not(.dark) [data-radix-dialog-content],
+html.light [role="dialog"] {
+  color: hsl(var(--card-foreground, 222 47% 11%));
+}
+
+html.dark body {
+  color: hsl(var(--foreground, 210 40% 98%));
+}
+
+/* ═══════ ENHANCED CONTRAST ═══════ */
+
+/* Hover states for interactive elements */
+html:not(.dark) button:hover,
+html:not(.dark) a:hover {
+  transition: opacity 150ms ease;
+}
+
+/* Badge contrast fix */
+html:not(.dark) .badge {
+  color: hsl(var(--foreground, 222 47% 11%));
+}
+
+/* Sidebar contrast */
+html:not(.dark) .sidebar-foreground {
+  color: hsl(var(--foreground, 222 47% 11%));
+}
+
+/* Input text contrast */
+html:not(.dark) input,
+html:not(.dark) textarea,
+html:not(.dark) select {
+  color: hsl(var(--foreground, 222 47% 11%));
+}
+
+/* Dark mode enhancements */
+html.dark .glass-panel {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+html.dark .glass-card {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Focus ring visibility */
+html.dark :focus-visible {
+  outline-color: hsl(var(--primary, 217 91% 60%));
+}

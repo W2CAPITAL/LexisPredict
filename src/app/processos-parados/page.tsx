@@ -1,0 +1,875 @@
+"use client";
+
+import { useAdmin } from "@/hooks/use-admin";
+
+/**
+ * Processos parados (com ação possível) v2 — reativação com estados sem_scan / confirmado.
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { cn, formatWhatsAppLink } from "@/lib/utils";
+import {
+  Clock,
+  Loader2,
+  RefreshCcw,
+  Search,
+  MessageCircle,
+  Copy,
+  ExternalLink,
+  PauseCircle,
+  Filter,
+  CheckCircle2,
+  Database,
+  Download,
+  FileSpreadsheet,
+  Square,
+} from "lucide-react";
+import { fetchRepoCases, scanSingleCaseAction } from "@/app/actions/case-actions";
+import { u8ToBlob } from "@/lib/u8-to-blob";
+import {
+  loadParadosScanCkpt,
+  saveParadosScanCkpt,
+  clearParadosScanCkpt,
+  isScanFresh,
+  scanDelayMs,
+  sleepMs,
+  type ParadosScanCheckpoint,
+  type ParadosScanMode,
+} from "@/lib/parados-scan-queue";
+import type { LegalCase } from "@/lib/case-logic";
+import {
+  listProcessosParados,
+  scriptProcessoParado,
+  loadTratadosMap,
+  saveTratado,
+  clearTratado,
+  type FaixaParado,
+  type ProcessoParadoItem,
+  type EstadoParado,
+  type FiltroFaseParado,
+  matchFiltrosFase,
+} from "@/lib/processos-parados";
+import { loadCarteiraComCache } from "@/lib/session-carteira-cache";
+import { linhaFase, linhaDonoAto } from "@/lib/fase-resumo";
+import { appendScanLog } from "@/lib/scan-event-log";
+import { ScanLogPanel } from "@/components/ops/scan-log-panel";
+import { listAdvogados } from "@/lib/case-filters";
+
+const FAIXAS: { id: FaixaParado; label: string }[] = [
+  { id: 0, label: "Todos + recentes" },
+  { id: 7, label: "≥ 7 dias" },
+  { id: 15, label: "≥ 15 dias" },
+  { id: 30, label: "≥ 30 dias" },
+  { id: 60, label: "≥ 60 dias" },
+  { id: 90, label: "≥ 90 dias" },
+  { id: 120, label: "≥ 120 dias" },
+  { id: 180, label: "≥ 180 dias" },
+];
+
+type FiltroEstado = "todos" | "confirmados" | "sem_scan" | "tratados" | "pendentes";
+
+export default function ProcessosParadosPage() {
+  const { canScan, canCopy, canExport } = useAdmin();
+  const [batchScanning, setBatchScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<string>("");
+  const [pendingResume, setPendingResume] = useState<ParadosScanCheckpoint | null>(null);
+  const abortRef = useRef(false);
+  const runningRef = useRef(false);
+
+  const { toast } = useToast();
+  const [cases, setCases] = useState<LegalCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [minDias, setMinDias] = useState<FaixaParado>(15);
+  const [search, setSearch] = useState("");
+  const [scanning, setScanning] = useState<string | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("pendentes");
+  const [lawyerFilter, setLawyerFilter] = useState("ALL");
+  const [somenteMeta, setSomenteMeta] = useState(true);
+  const [dailyMeta, setDailyMeta] = useState(25);
+  const [tratados, setTratados] = useState<Record<string, string>>({});
+  const [onlyComTel, setOnlyComTel] = useState(false);
+  const [filtrosFase, setFiltrosFase] = useState<FiltroFaseParado[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      await loadCarteiraComCache({
+        fetchNetwork: async () => (await fetchRepoCases()) || [],
+        onShow: (data) => {
+          if (Array.isArray(data)) setCases(data);
+        },
+      });
+      setTratados(loadTratadosMap());
+    } catch (e: any) {
+      toast({ title: "Erro ao carregar", description: e?.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    load();
+    try {
+      const m = localStorage.getItem("lexis_parados_meta");
+      if (m) setDailyMeta(Math.max(10, Math.min(100, parseInt(m, 10) || 25)));
+      const s = localStorage.getItem("lexis_parados_somente_meta");
+      if (s === "0") setSomenteMeta(false);
+      const ck = loadParadosScanCkpt();
+      if (ck) setPendingResume(ck);
+    } catch {
+      /* */
+    }
+  }, [load]);
+
+  const advogados = useMemo(() => listAdvogados(cases as any), [cases]);
+
+  const listaBase = useMemo(() => {
+    const items = listProcessosParados(cases, minDias, {
+      includeSemScan: true,
+      onlyConfirmados: false,
+    }).map((i) => ({
+      ...i,
+      tratado: !!tratados[String(i.case.protocolo || "")],
+    }));
+    return items;
+  }, [cases, minDias, tratados]);
+
+  const lista = useMemo(() => {
+    let items = listaBase;
+    const q = search.trim().toLowerCase();
+    if (q) {
+      items = items.filter(
+        (i) =>
+          String(i.case.cliente || "").toLowerCase().includes(q) ||
+          String(i.case.protocolo || "").toLowerCase().includes(q) ||
+          String(i.case.advogado || "").toLowerCase().includes(q)
+      );
+    }
+    if (lawyerFilter !== "ALL") {
+      const key = lawyerFilter.trim().toUpperCase();
+      items = items.filter((i) => String(i.case.advogado || "").trim().toUpperCase() === key);
+    }
+    if (onlyComTel) {
+      items = items.filter((i) => String(i.case.telefone || "").replace(/\D/g, "").length >= 10);
+    }
+    if (filtroEstado === "confirmados") {
+      items = items.filter((i) => i.estado === "parado_confirmado" || i.estado === "parado_provavel");
+    } else if (filtroEstado === "sem_scan") {
+      items = items.filter((i) => i.estado === "sem_scan");
+    } else if (filtroEstado === "tratados") {
+      items = items.filter((i) => i.tratado);
+    } else if (filtroEstado === "pendentes") {
+      items = items.filter((i) => !i.tratado);
+    }
+    if (filtrosFase.length) {
+      items = items.filter((i) =>
+        matchFiltrosFase(
+          {
+            temContestacao: i.temContestacao,
+            temSentenca: i.temSentenca,
+            temReplica: i.temReplica,
+            cumprimentoRecebido: !!i.cumprimentoRecebido,
+            cumprimentoAberto: !!i.cumprimentoAberto,
+            replicaPendente: !!i.replicaPendente,
+            temCitacao: false,
+            temAudiencia: false,
+          },
+          filtrosFase,
+          i.diasParadoTribunal
+        )
+      );
+    }
+    if (somenteMeta) items = items.slice(0, dailyMeta);
+    return items;
+  }, [listaBase, search, lawyerFilter, onlyComTel, filtroEstado, somenteMeta, dailyMeta, filtrosFase]);
+
+  const kpis = useMemo(() => {
+    const all = listaBase;
+    return {
+      totalPend: all.filter((i) => !i.tratado).length,
+      confirmados: all.filter((i) => i.estado !== "sem_scan" && !i.tratado).length,
+      semScan: all.filter((i) => i.estado === "sem_scan" && !i.tratado).length,
+      d90: all.filter((i) => i.estado !== "sem_scan" && i.diasParadoTribunal >= 90 && !i.tratado).length,
+      tratados: all.filter((i) => i.tratado).length,
+    };
+  }, [listaBase]);
+
+  const markTratado = (proto: string) => {
+    saveTratado(proto);
+    setTratados(loadTratadosMap());
+    toast({ title: "Marcado como tratado", description: "Não some da carteira — só desta fila de parados." });
+  };
+
+  const unmarkTratado = (proto: string) => {
+    clearTratado(proto);
+    setTratados(loadTratadosMap());
+  };
+
+  const copyScript = (item: ProcessoParadoItem) => {
+    const text = scriptProcessoParado(item.case, item.diasParadoTribunal, item.estado);
+    navigator.clipboard.writeText(text);
+    toast({ title: "Mensagem copiada", description: item.estado === "sem_scan" ? "Auditar antes de prometer andamento" : "Reativação / andamento" });
+  };
+
+  const toggleFase = (id: FiltroFaseParado) => {
+    setFiltrosFase((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const rowsExport = () =>
+    lista.map((i) => ({
+      cliente: i.case.cliente,
+      protocolo: i.case.protocolo,
+      estado: i.estado,
+      dias_parado: i.diasParadoTribunal,
+      fonte: i.fonteData,
+      advogado: i.case.advogado || "",
+      telefone: i.case.telefone || "",
+      score: i.scoreAcao,
+      tratado: i.tratado ? "sim" : "nao",
+      tem_contestacao: i.temContestacao ? "sim" : "nao",
+      tem_sentenca: i.temSentenca ? "sim" : "nao",
+      tem_replica: i.temReplica ? "sim" : "nao",
+      replica_pendente: i.replicaPendente ? "sim" : "nao",
+      cumprimento_aberto: i.cumprimentoAberto ? "sim" : "nao",
+      cumprimento_recebido: i.cumprimentoRecebido ? "sim" : "nao",
+      ultimo_sinal: i.ultimoSinalResumo || "",
+    }));
+
+  const exportCsv = () => {
+    if (!canExport) {
+      toast({ title: "Modo visualização", description: "Exportação bloqueada neste perfil.", variant: "destructive" });
+      return;
+    }
+    const rows = rowsExport();
+    const header = [
+      "cliente","protocolo","estado","dias_parado","fonte","advogado","telefone","score","tratado",
+      "tem_contestacao","tem_sentenca","tem_replica","replica_pendente","cumprimento_aberto","cumprimento_recebido","ultimo_sinal",
+    ];
+    const lines = [header.join(";")];
+    for (const r of rows) {
+      lines.push(header.map((k) => `"${String((r as any)[k] ?? "").replace(/"/g, '""')}"`).join(";"));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const suf = filtrosFase.length ? filtrosFase.join("-") : "todos";
+    a.download = `processos-parados-${minDias}d-${suf}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportXlsx = async () => {
+    if (!canExport) {
+      toast({ title: "Modo visualização", description: "Exportação bloqueada neste perfil.", variant: "destructive" });
+      return;
+    }
+    try {
+      const { buildXlsxBytes } = await import("@/lib/spreadsheet-io");
+      const rows = rowsExport();
+      const headers = [
+        "Cliente","Processo","Estado","Dias parado","Fonte","Advogado","Telefone","Score","Tratado",
+        "Tem contestação","Tem sentença","Tem réplica","Réplica pendente","Cumprimento aberto","Cumprimento recebido","Último sinal",
+      ];
+      const body = rows.map((r) => [
+        r.cliente, r.protocolo, r.estado, r.dias_parado, r.fonte, r.advogado, r.telefone,
+        r.score, r.tratado, r.tem_contestacao, r.tem_sentenca, r.tem_replica,
+        r.replica_pendente, r.cumprimento_aberto, r.cumprimento_recebido, r.ultimo_sinal,
+      ]);
+      const u8 = await buildXlsxBytes(headers, body);
+      const blob = u8ToBlob(
+      u8,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+      const suf = filtrosFase.length ? filtrosFase.join("-") : "todos";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `processos-parados-${minDias}d-${suf}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "XLSX gerado", description: `${rows.length} linha(s)` });
+    } catch (e: any) {
+      toast({ title: "Falha no XLSX", description: e?.message || "Use o CSV", variant: "destructive" });
+    }
+  };
+
+  const applyScanPatch = (protocolo: string, patch: any) => {
+    if (!patch || typeof patch !== "object") return;
+    setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? { ...c, ...patch } : c)));
+  };
+
+  const scanOne = async (protocolo: string) => {
+    setScanning(protocolo);
+    try {
+      const res: any = await scanSingleCaseAction(protocolo, { mode: "both", fast: false } as any);
+      if (res?.case) {
+        applyScanPatch(protocolo, res.case);
+        toast({ title: "Auditoria atualizada", description: protocolo });
+      } else {
+        toast({
+          title: "Scan concluído",
+          description: res?.message || res?.error || "Sem patch",
+          variant: res?.success === false ? "destructive" : "default",
+        });
+      }
+    } catch (e: any) {
+      toast({ title: "Falha no scan", description: e?.message, variant: "destructive" });
+    } finally {
+      setScanning(null);
+    }
+  };
+
+  const stopBatch = () => {
+    abortRef.current = true;
+    toast({ title: "Scanner pausado", description: "O ponto foi gravado. Pode retomar." });
+  };
+
+  const runQueue = async (ck: ParadosScanCheckpoint) => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    abortRef.current = false;
+    setPendingResume(null);
+    setBatchScanning(true);
+    let failStreak = 0;
+    let state = { ...ck };
+    try {
+      while (state.index < state.queue.length) {
+        if (abortRef.current) {
+          saveParadosScanCkpt(state);
+          setPendingResume({ ...state });
+          toast({
+            title: "Fila pausada",
+            description: `${state.index}/${state.queue.length} · OK ${state.ok} · falha ${state.fail}`,
+          });
+          return;
+        }
+        const p = String(state.queue[state.index] || "");
+        setScanning(p);
+        setScanProgress(`${state.index + 1}/${state.queue.length} · ${p}`);
+        state.lastProtocolo = p;
+
+        const current = cases.find((c) => c.protocolo === p);
+        const consultado =
+          (current as any)?.datajud_consultado_em ||
+          (current as any)?.djen_consultado_em ||
+          (current as any)?.ultimo_scan_em;
+        if (isScanFresh(consultado)) {
+          state.skipped += 1;
+          state.index += 1;
+          saveParadosScanCkpt(state);
+          continue;
+        }
+
+        let okItem = false;
+        let lastErr = "";
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const res: any = await scanSingleCaseAction(p, { mode: "both", fast: false } as any);
+            if (res?.case) applyScanPatch(p, res.case);
+            if (res?.success === false) {
+              lastErr = String(res?.error || res?.message || "falha");
+            } else {
+              okItem = true;
+              break;
+            }
+          } catch (e: any) {
+            lastErr = e?.message || String(e);
+          }
+          if (attempt === 1) await sleepMs(1200);
+        }
+
+        if (okItem) {
+          state.ok += 1;
+          failStreak = 0;
+          appendScanLog({ cnj: p, motor: "datajud+djen", ok: true });
+        } else {
+          state.fail += 1;
+          failStreak += 1;
+          state.lastError = lastErr;
+          appendScanLog({ cnj: p, motor: "datajud+djen", ok: false, detalhe: lastErr });
+        }
+        state.index += 1;
+        saveParadosScanCkpt(state);
+        await sleepMs(scanDelayMs(failStreak));
+      }
+      clearParadosScanCkpt();
+      toast({
+        title: "Lote de parados concluído",
+        description: `OK ${state.ok} · falhas ${state.fail} · pulados ${state.skipped}`,
+      });
+    } finally {
+      setScanning(null);
+      setScanProgress("");
+      setBatchScanning(false);
+      runningRef.current = false;
+    }
+  };
+
+  const startBatch = (mode: ParadosScanMode, limit = 40) => {
+    if (!canScan) {
+      toast({ title: "Modo visualização", description: "Scanner bloqueado neste perfil.", variant: "destructive" });
+      return;
+    }
+    const opts =
+      mode === "sem_scan"
+        ? { includeSemScan: true, onlyConfirmados: false }
+        : { includeSemScan: false, onlyConfirmados: true };
+    let alvo = listProcessosParados(cases, minDias, opts as any)
+      .filter((i) => !tratados[String(i.case?.protocolo || "")]);
+    if (mode === "sem_scan") alvo = alvo.filter((i) => i.estado === "sem_scan");
+    if (mode === "lista") alvo = lista.filter((i) => !i.tratado);
+    const queue = alvo
+      .map((i) => String(i.case?.protocolo || ""))
+      .filter(Boolean)
+      .slice(0, limit);
+    if (!queue.length) {
+      toast({ title: "Nada a auditar", description: "Nenhum CNJ nesta seleção." });
+      return;
+    }
+    const ck: ParadosScanCheckpoint = {
+      queue,
+      index: 0,
+      ok: 0,
+      fail: 0,
+      skipped: 0,
+      mode,
+      startedAt: new Date().toISOString(),
+    };
+    saveParadosScanCkpt(ck);
+    void runQueue(ck);
+  };
+
+  const estadoBadge = (e: EstadoParado) => {
+    if (e === "sem_scan")
+      return <Badge className="bg-slate-600 text-white text-[9px] font-bold">SEM SCAN</Badge>;
+    if (e === "parado_provavel")
+      return <Badge className="bg-amber-200 text-amber-900 text-[9px] font-bold">PROVÁVEL</Badge>;
+    return <Badge className="bg-amber-600 text-white text-[9px] font-bold">PARADO</Badge>;
+  };
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <main className="flex-1 overflow-auto">
+        <div className="border-b border-border/60 bg-card/40 px-6 py-5 space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-xl font-black tracking-tight flex items-center gap-2">
+                <PauseCircle className="text-amber-600" size={22} />
+                Processos parados
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                Silêncio no tribunal ≠ prazo vencido. Separe quem precisa <strong>auditar</strong> de quem está{" "}
+                <strong>parado de verdade</strong> e ainda cabe cobrança de andamento.
+              </p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              
+              {pendingResume && !batchScanning && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={!canScan}
+                  onClick={() => runQueue(pendingResume)}
+                  className="gap-2"
+                >
+                  Retomar fila ({pendingResume.index}/{pendingResume.queue.length})
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!canScan || batchScanning}
+                onClick={() => startBatch("parados", 40)}
+                className="gap-2"
+              >
+                {batchScanning ? "Auditando…" : "Auditar parados (40)"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canScan || batchScanning}
+                onClick={() => startBatch("sem_scan", 25)}
+                className="gap-2"
+              >
+                Auditar sem scan (25)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canScan || batchScanning}
+                onClick={() => startBatch("lista", 40)}
+                className="gap-2"
+              >
+                Auditar lista filtrada
+              </Button>
+              {batchScanning && (
+                <Button variant="destructive" size="sm" onClick={stopBatch} className="gap-2">
+                  <Square size={12} /> Pausar
+                </Button>
+              )}
+              {scanProgress ? (
+                <span className="text-[10px] font-mono text-muted-foreground self-center">
+                  {scanProgress}
+                </span>
+              ) : null}
+
+              <Button variant="outline" size="sm" onClick={exportCsv} disabled={!canExport} className="gap-2">
+                <Download size={14} /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!canExport} className="gap-2">
+                <FileSpreadsheet size={14} /> XLSX
+              </Button>
+              <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
+                {loading ? <Loader2 className="animate-spin" size={14} /> : <RefreshCcw size={14} />}
+                Atualizar
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Pendentes</p>
+              <p className="text-2xl font-black tabular-nums">{kpis.totalPend}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Parados (c/ data)</p>
+              <p className="text-2xl font-black tabular-nums text-amber-700">{kpis.confirmados}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Sem scan</p>
+              <p className="text-2xl font-black tabular-nums text-slate-600">{kpis.semScan}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">≥ 90 dias</p>
+              <p className="text-2xl font-black tabular-nums text-red-700">{kpis.d90}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Tratados</p>
+              <p className="text-2xl font-black tabular-nums text-emerald-700">{kpis.tratados}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2 items-center">
+              <Filter size={14} className="text-muted-foreground" />
+              {FAIXAS.map((f) => (
+                <Button
+                  key={f.id}
+                  size="sm"
+                  variant={minDias === f.id ? "default" : "outline"}
+                  className="h-8 text-[10px] font-bold uppercase"
+                  onClick={() => setMinDias(f.id)}
+                >
+                  {f.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              {(
+                [
+                  ["pendentes", "Pendentes"],
+                  ["confirmados", "Só parados"],
+                  ["sem_scan", "Só sem scan"],
+                  ["tratados", "Tratados"],
+                  ["todos", "Todos"],
+                ] as const
+              ).map(([id, label]) => (
+                <Button
+                  key={id}
+                  size="sm"
+                  variant={filtroEstado === id ? "secondary" : "ghost"}
+                  className="h-8 text-[10px] font-bold uppercase"
+                  onClick={() => setFiltroEstado(id)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <div className="relative flex-1 max-w-md w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Cliente, CNJ ou advogado…"
+                  className="pl-9 h-9"
+                />
+              </div>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 text-xs font-medium max-w-[220px]"
+                value={lawyerFilter}
+                onChange={(e) => setLawyerFilter(e.target.value)}
+              >
+                <option value="ALL">Todos os advogados</option>
+                {advogados.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-2 text-[10px] font-bold uppercase text-muted-foreground cursor-pointer">
+                <Checkbox checked={onlyComTel} onCheckedChange={(v) => setOnlyComTel(!!v)} />
+                Só com telefone
+              </label>
+              <label className="flex items-center gap-2 text-[10px] font-bold uppercase text-muted-foreground cursor-pointer">
+                <Checkbox
+                  checked={somenteMeta}
+                  onCheckedChange={(v) => {
+                    const on = !!v;
+                    setSomenteMeta(on);
+                    try {
+                      localStorage.setItem("lexis_parados_somente_meta", on ? "1" : "0");
+                    } catch {
+                      /* */
+                    }
+                  }}
+                />
+                Só meta ({dailyMeta})
+              </label>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => {
+                    const n = Math.max(10, dailyMeta - 5);
+                    setDailyMeta(n);
+                    try {
+                      localStorage.setItem("lexis_parados_meta", String(n));
+                    } catch {
+                      /* */
+                    }
+                  }}
+                >
+                  −
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => {
+                    const n = Math.min(100, dailyMeta + 5);
+                    setDailyMeta(n);
+                    try {
+                      localStorage.setItem("lexis_parados_meta", String(n));
+                    } catch {
+                      /* */
+                    }
+                  }}
+                >
+                  +
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Fase (um ou vários):</span>
+              {(
+                [
+                  ["sem_contestacao", "Sem contestação"],
+                  ["sem_sentenca", "Sem sentença"],
+                  ["sem_replica", "Sem réplica"],
+                  ["replica_pendente", "Réplica pendente"],
+                  ["cumprimento_aberto", "Cumprimento em aberto"],
+                  ["janela_recente", "Janela recente (≤30d)"],
+                ] as const
+              ).map(([id, label]) => {
+                const on = filtrosFase.includes(id);
+                return (
+                  <Button
+                    key={id}
+                    type="button"
+                    size="sm"
+                    variant={on ? "default" : "outline"}
+                    className="h-8 text-[10px] font-bold uppercase"
+                    onClick={() => toggleFase(id)}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
+              {filtrosFase.length > 0 ? (
+                <Button type="button" size="sm" variant="ghost" className="h-8 text-[10px]" onClick={() => setFiltrosFase([])}>
+                  Limpar fase
+                </Button>
+              ) : null}
+              <span className="text-[10px] text-muted-foreground">
+                {filtrosFase.length ? "AND — combina os critérios marcados" : "sem filtro de fase"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-3">
+          {hydrated ? <ScanLogPanel compact /> : null}
+          {loading && (
+            <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
+              <Loader2 className="animate-spin" /> Carregando carteira…
+            </div>
+          )}
+
+          {!loading && lista.length === 0 && (
+            <div className="rounded-2xl border border-dashed p-12 text-center text-muted-foreground">
+              <Clock className="mx-auto mb-3 opacity-40" size={32} />
+              <p className="font-semibold">Nada nesta combinação de filtros</p>
+              <p className="text-sm mt-1">
+                Reduza a faixa, inclua “Sem scan” ou desligue “Só meta”. Rode o scanner híbrido para preencher datas.
+              </p>
+            </div>
+          )}
+
+          {lista.map((item) => {
+            const c = item.case;
+            const tel = String(c.telefone || "").replace(/\D/g, "");
+            const script = scriptProcessoParado(c, item.diasParadoTribunal, item.estado);
+            return (
+              <div
+                key={c.protocolo}
+                className={cn(
+                  "rounded-2xl border bg-card p-4 sm:p-5 shadow-sm transition-colors",
+                  item.tratado ? "opacity-60 border-emerald-200" : "hover:border-amber-300/60"
+                )}
+              >
+                <div className="flex flex-col lg:flex-row lg:items-start gap-4 justify-between">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-black text-sm uppercase truncate max-w-[280px]">{c.cliente}</h2>
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {c.protocolo}
+                      </Badge>
+                      {estadoBadge(item.estado)}
+                      {item.estado !== "sem_scan" && (
+                        <Badge
+                          className={cn(
+                            "text-[10px] font-bold",
+                            item.diasParadoTribunal >= 180
+                              ? "bg-red-600 text-white"
+                              : item.diasParadoTribunal >= 90
+                                ? "bg-amber-500 text-black"
+                                : "bg-slate-200 text-slate-800"
+                          )}
+                        >
+                          {item.diasParadoTribunal}d parado
+                        </Badge>
+                      )}
+                      <Badge variant="secondary" className="text-[9px] uppercase">
+                        {item.fonteData}
+                      </Badge>
+                      {!item.temContestacao && (
+                        <Badge variant="outline" className="text-[9px] uppercase text-amber-800 border-amber-400">
+                          Sem contestação
+                        </Badge>
+                      )}
+                      {!item.temSentenca && (
+                        <Badge variant="outline" className="text-[9px] uppercase">
+                          Sem sentença
+                        </Badge>
+                      )}
+                      {!item.temReplica && (
+                        <Badge variant="outline" className="text-[9px] uppercase">
+                          Sem réplica
+                        </Badge>
+                      )}
+                      {item.replicaPendente && (
+                        <Badge className="text-[9px] uppercase bg-sky-600 text-white">
+                          Réplica pendente
+                        </Badge>
+                      )}
+                      {item.cumprimentoAberto && (
+                        <Badge className="text-[9px] uppercase bg-violet-700 text-white">
+                          Cumprimento em aberto
+                        </Badge>
+                      )}
+                      {item.tratado && (
+                        <Badge className="bg-emerald-600 text-white text-[9px]">TRATADO</Badge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {linhaFase(c)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {linhaDonoAto(c)}
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{item.ultimoSinalResumo}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.oportunidades.map((o, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[10px] rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 px-2 py-0.5 text-amber-900 dark:text-amber-100"
+                        >
+                          {o}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Advogado: {c.advogado || "—"} · Score: <strong>{item.scoreAcao}</strong>
+                      {item.diasSemRetornoEquipe != null
+                        ? ` · Sem retorno equipe: ${item.diasSemRetornoEquipe}d`
+                        : " · Sem retorno registrado"}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    <Button size="sm" variant="secondary" className="h-9 gap-1.5" onClick={() => copyScript(item)}>
+                      <Copy size={14} /> Mensagem
+                    </Button>
+                    {tel.length >= 10 && (
+                      <Button size="sm" variant="outline" className="h-9 gap-1.5" asChild>
+                        <a href={formatWhatsAppLink(tel, script)} target="_blank" rel="noopener noreferrer">
+                          <MessageCircle size={14} /> WhatsApp
+                        </a>
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5"
+                      disabled={scanning === c.protocolo}
+                      onClick={() => scanOne(c.protocolo)}
+                    >
+                      {scanning === c.protocolo ? (
+                        <Loader2 className="animate-spin" size={14} />
+                      ) : item.estado === "sem_scan" ? (
+                        <Database size={14} />
+                      ) : (
+                        <RefreshCcw size={14} />
+                      )}
+                      {item.estado === "sem_scan" ? "Auditar" : "Rescan"}
+                    </Button>
+                    {!item.tratado ? (
+                      <Button size="sm" variant="ghost" className="h-9 gap-1.5" onClick={() => markTratado(c.protocolo)}>
+                        <CheckCircle2 size={14} /> Tratado
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="ghost" className="h-9 gap-1.5 text-muted-foreground" onClick={() => unmarkTratado(c.protocolo)}>
+                        Desfazer
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="h-9 gap-1.5" asChild>
+                      <Link href={`/cases?search=${encodeURIComponent(c.protocolo)}`}>
+                        <ExternalLink size={14} /> Abrir
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </main>
+    </div>
+  );
+}

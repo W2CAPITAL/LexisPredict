@@ -1,0 +1,439 @@
+/**
+ * Rede de segurança de contraste — light / dark / temas custom.
+ * Evita branco-em-branco e preto-em-preto em cards, dossiê, report, dialogs.
+ */
+
+/* ---- Tokens semânticos sempre legíveis ---- */
+:root:not(.dark) {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+/* Fundo claro: força texto escuro quando alguém usou text-white “solto” */
+.bg-white :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white]):not([data-metal])),
+.bg-card :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white]):not([data-metal])),
+.bg-background :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])),
+.bg-\[\#f3f2f2\] :where(.text-white:not(button):not([class*="bg-"])),
+.bg-\[\#fafafa\] :where(.text-white:not(button):not([class*="bg-"])),
+[class*="bg-slate-50"] :where(.text-white:not(button):not([class*="bg-"])),
+[class*="bg-gray-50"] :where(.text-white:not(button):not([class*="bg-"])) {
+  color: #0f172a !important;
+}
+
+/* Fundo escuro: força texto claro se botaram text-black */
+.bg-black :where(.text-black, .text-slate-900, .text-slate-800, .text-foreground),
+.bg-slate-950 :where(.text-black, .text-slate-900, .text-slate-800),
+.bg-zinc-950 :where(.text-black, .text-slate-900),
+.bg-slate-900 :where(.text-black, .text-slate-900),
+[class*="bg-black"] :where(.text-black:not(button):not([data-keep-black])),
+.dark .bg-card :where(.text-black:not(button):not([data-keep-black])) {
+  color: #f8fafc !important;
+}
+
+/* Report / dossiê KPI: valor sempre contrastante no card claro */
+.lexis-kpi-card {
+  background: #ffffff !important;
+  border: 2px solid #0f172a !important;
+  color: #0f172a !important;
+}
+.dark .lexis-kpi-card {
+  background: #0f172a !important;
+  border-color: #e2e8f0 !important;
+  color: #f8fafc !important;
+}
+.lexis-kpi-card .lexis-kpi-label {
+  color: #64748b !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-label {
+  color: #94a3b8 !important;
+}
+.lexis-kpi-card .lexis-kpi-value {
+  color: #0f172a !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value {
+  color: #f8fafc !important;
+}
+.lexis-kpi-card .lexis-kpi-value.text-danger,
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-danger {
+  color: #dc2626 !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-danger {
+  color: #f87171 !important;
+}
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-ok {
+  color: #059669 !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-ok {
+  color: #34d399 !important;
+}
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-info {
+  color: #2563eb !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-info {
+  color: #60a5fa !important;
+}
+
+/* muted */
+:root:not(.dark) .text-muted-foreground {
+  color: hsl(240 4% 36%) !important;
+}
+.dark .text-muted-foreground {
+  color: hsl(240 5% 72%) !important;
+}
+
+/* opacidades de text-black em dark */
+.dark .text-black\/30,
+.dark .text-black\/40,
+.dark .text-black\/50,
+.dark .text-black\/60,
+.dark .text-black\/70 {
+  color: rgba(248, 250, 252, 0.7) !important;
+}
+:root:not(.dark) .text-white\/30,
+:root:not(.dark) .text-white\/40,
+:root:not(.dark) .text-white\/50 {
+  color: rgba(15, 23, 42, 0.55) !important;
+}
+
+/* Report page root: respeita tema (definição em report-print.css) */
+
+/* Tabelas / dialogs */
+table td, table th { color: inherit; }
+:root:not(.dark) table .text-white:not([class*="bg-"]) {
+  color: hsl(var(--foreground)) !important;
+}
+[role="dialog"] { color: hsl(var(--foreground)); }
+[role="dialog"] .text-white:not(button):not([class*="bg-black"]):not([class*="bg-primary"]):not([class*="bg-red"]):not([class*="bg-emerald"]) {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Badge semana */
+.badge-semana {
+  background: #2563eb !important;
+  color: #fff !important;
+  border: none !important;
+}
+.dark .badge-semana {
+  background: #60a5fa !important;
+  color: #0f172a !important;
+}
+
+/* Inputs / selects legíveis */
+input, textarea, select {
+  color: hsl(var(--foreground));
+}
+input::placeholder, textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.85;
+}
+
+/* Recharts tooltip */
+.recharts-default-tooltip {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* =====================================================================
+   DARK — superfícies "brutalistas" claras fixas (bg-white, #f8f9fb,
+   #f3f2f2, #e2e2e2, slate-50, gray-100, tons 50…) permanecem CLARAS,
+   mas o texto precisa ficar ESCURO para nunca haver "branco-em-branco".
+   Elementos que já são dark-adaptive (classe `dark:bg-*`) ou marcados
+   com `data-keep-light` ficam fora da regra.
+   ===================================================================== */
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+):not([class*="dark:bg-"]):not([data-keep-light]) {
+  color: #0f172a !important;
+}
+
+/* textos theme-aware dentro de superfície clara fixa → forçar escuro */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-foreground"]:not([class*="dark:bg-"]) {
+  color: #0f172a !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-muted-foreground"]:not([class*="dark:bg-"]) {
+  color: #475569 !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-primary"]:not([class*="dark:bg-"]) {
+  color: #1d4ed8 !important;
+}
+
+/* text-black/xx dentro de superfície clara fixa: reverte a regra global
+   (.dark .text-black/xx → claro) para continuar ESCURO e legível */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-black/"]:not([class*="dark:bg-"]) {
+  color: #334155 !important;
+}
+
+/* inputs dentro de superfície clara fixa: texto escuro (senão o texto
+   digitado fica branco-em-branco no dark) */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) :is(input, textarea, select):not([class*="dark:bg-"]) {
+  color: #0f172a !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) :is(input, textarea)::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+/* === Lote contraste sólido (padrão operacional) === */
+:root {
+  --bg-opacity: 1;
+  --sidebar-opacity: 1;
+  --glass-blur: 0px;
+}
+
+/* Sidebar e painéis: nunca “fantasma” com opacidade alta */
+.bg-sidebar,
+aside.bg-sidebar,
+[data-sidebar] {
+  background-color: hsl(var(--sidebar-background) / max(0.92, var(--sidebar-opacity, 1))) !important;
+  backdrop-filter: none;
+}
+
+/* Cards e diálogos legíveis sobre wallpaper */
+.ops-ui [data-admin-card],
+.ops-ui .bg-card,
+[role="dialog"],
+[data-radix-dialog-content] {
+  background-color: hsl(var(--card) / max(0.94, var(--bg-opacity, 1))) !important;
+}
+
+/* CNJ / mono: legível */
+.font-mono.tabular-nums {
+  letter-spacing: -0.01em;
+}
+
+/* ========== LOTE 1 — densidade, fonte, modo ops, status ========== */
+html {
+  font-size: calc(16px * var(--ui-font-scale, 1));
+}
+
+html[data-density="compact"] .ops-ui table tbody td,
+html[data-density="compact"] .ops-ui table thead th {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+html[data-density="wide"] .ops-ui table tbody td,
+html[data-density="wide"] .ops-ui table thead th {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+/* Modo operacional: menos grito visual */
+html[data-ops-mode="1"] .ops-ui h1.font-black.uppercase,
+html[data-ops-mode="1"] .ops-ui h2.font-black.uppercase {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+}
+html[data-ops-mode="1"] .ops-ui .admin-page-subtitle {
+  text-transform: none;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+/* Status com tokens personalizáveis */
+.ops-ui [data-status="Vencido"],
+.ops-ui [data-status="Caso Crítico"] {
+  background-color: color-mix(in srgb, var(--status-vencido, #b91c1c) 18%, transparent);
+  color: var(--status-vencido, #b91c1c);
+  border-color: color-mix(in srgb, var(--status-vencido, #b91c1c) 35%, transparent);
+}
+.ops-ui [data-status="É Hoje"] {
+  background-color: color-mix(in srgb, var(--status-hoje, #1d4ed8) 16%, transparent);
+  color: var(--status-hoje, #1d4ed8);
+  border-color: color-mix(in srgb, var(--status-hoje, #1d4ed8) 35%, transparent);
+}
+.ops-ui [data-status="BA"],
+.ops-ui [data-ba="1"] {
+  background-color: color-mix(in srgb, var(--status-ba, #dc2626) 20%, transparent);
+  color: var(--status-ba, #dc2626);
+}
+
+/* Tabela e inputs: superfície sólida */
+.ops-ui table thead {
+  background-color: hsl(var(--muted) / 0.95) !important;
+}
+.ops-ui table tbody tr:hover {
+  background-color: hsl(var(--muted) / 0.55) !important;
+}
+.ops-ui input,
+.ops-ui textarea,
+.ops-ui select,
+.ops-ui [role="combobox"] {
+  background-color: hsl(var(--background) / max(0.96, var(--bg-opacity, 1))) !important;
+}
+
+/* Wallpaper: respeita opacidade mínima */
+html.lexis-wallpaper-active body {
+  background-color: hsl(var(--background) / max(var(--wallpaper-min-opacity, 0.85), var(--bg-opacity, 1)));
+}
+/* Badges legíveis — override de outline pastel */
+[class*="badge"], .badge, [data-slot="badge"] {
+  font-weight: 700 !important;
+}
+/* Evita texto claro em fundo claro em chips de status comuns */
+.bg-red-50.text-red-700 { background-color: #b91c1c !important; color: #fff !important; }
+.bg-emerald-50.text-emerald-700 { background-color: #047857 !important; color: #fff !important; }
+.bg-amber-50.text-amber-800,
+.bg-amber-50.text-amber-900 { background-color: #d97706 !important; color: #fff !important; }
+.bg-blue-50.text-blue-700 { background-color: #1d4ed8 !important; color: #fff !important; }
+.bg-orange-100.text-orange-800 { background-color: #c2410c !important; color: #fff !important; }
+.bg-yellow-100.text-yellow-800 { background-color: #ca8a04 !important; color: #111 !important; }
