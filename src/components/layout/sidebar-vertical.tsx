@@ -12,6 +12,7 @@ import { useDataJudScanStore } from '@/store/use-datajud-scan-store';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { operatorRouteAllowed } from '@/lib/roles';
 
 const sections = [
   { title: 'Dia a dia', items: [
@@ -41,7 +42,7 @@ const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, 
 export function SidebarVertical() {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
-  const { isAdmin, isSuperAdmin, canScan } = useAdmin();
+  const { role, isSupervisor, isSuperAdmin, canScan } = useAdmin();
   const { plan } = usePlano();
   const { status, toggleMinimize } = useDataJudScanStore();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -65,11 +66,18 @@ export function SidebarVertical() {
   const groups = useMemo(() => {
     const all = sections.map(section => ({ title: String(section.title), items: section.items.map(([label, href, icon]) => ({ label, href, icon })) }));
     const team = [];
-    if (isAdmin) team.push({ label: 'Supervisão', href: '/supervisao', icon: ShieldCheck }, { label: 'Equipe', href: '/team', icon: Users }, { label: 'Auditoria', href: '/auditoria', icon: ShieldCheck });
+    if (isSupervisor) team.push({ label: 'Supervisão', href: '/supervisao', icon: ShieldCheck }, { label: 'Equipe', href: '/team', icon: Users }, { label: 'Auditoria', href: '/auditoria', icon: ShieldCheck });
     if (isSuperAdmin) team.push({ label: 'Segurança', href: '/security', icon: ShieldAlert }, { label: 'Administração', href: '/superadmin', icon: Crown });
     if (team.length) all.splice(1, 0, { title: 'Equipe e supervisão', items: team as any });
-    return all.map(group => ({ ...group, items: filterNavByPlan(group.items, isSuperAdmin ? 'maximo' : plan).filter(item => !query || normalize(`${item.label} ${item.href}`).includes(normalize(query))) })).filter(group => group.items.length);
-  }, [query, plan, isAdmin, isSuperAdmin]);
+    return all.map(group => ({
+      ...group,
+      items: filterNavByPlan(group.items, isSuperAdmin ? 'maximo' : plan).filter(
+        item =>
+          (role !== 'Operador' || operatorRouteAllowed(item.href)) &&
+          (!query || normalize(`${item.label} ${item.href}`).includes(normalize(query)))
+      ),
+    })).filter(group => group.items.length);
+  }, [query, plan, role, isSupervisor, isSuperAdmin]);
   const openAgents = () => { setMobileOpen(false); window.dispatchEvent(new Event('lexis-open-agents')); };
   const body = (compact: boolean, mobile: boolean) => <div className="flex h-full min-h-0 flex-col bg-card text-card-foreground">
     <div className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
