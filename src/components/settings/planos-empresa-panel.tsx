@@ -27,6 +27,7 @@ import {
   Crown,
   KeyRound,
   Loader2,
+  MessageCircle,
   Minus,
   ShieldCheck,
   Sparkles,
@@ -147,28 +148,68 @@ export function PlanosEmpresaPanel() {
       return;
     }
 
+    if (!selfServiceUnlocked) {
+      const tipo = acao(id);
+      const pedido =
+        tipo === "upgrade"
+          ? "upgrade"
+          : tipo === "downgrade"
+            ? "downgrade"
+            : "alteração de plano";
+      const mensagem = [
+        "Olá, quero solicitar " + pedido + " do LexisPredict.",
+        "Plano atual: " + PLAN_LABEL[currentPlan] + ".",
+        "Plano desejado: " + PLAN_LABEL[id] + ".",
+        "Ciclo: " + ciclo + ".",
+        profile?.email ? "Conta: " + profile.email + "." : "",
+        "Por favor, confirme a alteração e as condições comerciais.",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      window.open(
+        "https://wa.me/5513991199349?text=" + encodeURIComponent(mensagem),
+        "_blank",
+        "noopener,noreferrer"
+      );
+
+      toast({
+        title: "Solicitação pelo WhatsApp",
+        description:
+          "Sem token, upgrade/downgrade só pode ser autorizado pelo proprietário no WhatsApp (13) 99119-9349.",
+      });
+      return;
+    }
+
     setBusy(id);
     try {
       const r = await trocarMeuPlanoAction(id, ciclo);
       if (!r.ok) {
         const needsSetup = "setupRequired" in r && Boolean(r.setupRequired);
         toast({
-          title: needsSetup ? "Configuração necessária" : "Não foi possível solicitar",
-          description: r.error || "Falha ao gravar a solicitação.",
+          title: needsSetup ? "Configuração necessária" : "Não foi possível alterar",
+          description: r.error || "Falha ao alterar o plano.",
           variant: needsSetup ? "default" : "destructive",
         });
         return;
       }
+
       const changedNow = "selfService" in r && Boolean(r.selfService);
-      toast({
-        title: changedNow ? "Plano alterado" : "Solicitação registrada",
-        description: changedNow
-          ? PLAN_LABEL[id] + " foi liberado imediatamente pela sua autorização de token."
-          : PLAN_LABEL[id] + " · " + ciclo + ". A alteração entra após ativação comercial.",
-      });
-      if (changedNow) {
-        window.setTimeout(() => window.location.reload(), 350);
+      if (!changedNow) {
+        toast({
+          title: "Autorização do proprietário necessária",
+          description:
+            "Sem token, a mudança deve ser solicitada pelo WhatsApp (13) 99119-9349.",
+        });
+        return;
       }
+
+      toast({
+        title: "Plano alterado",
+        description:
+          PLAN_LABEL[id] + " foi liberado imediatamente pela autorização de token.",
+      });
+      window.setTimeout(() => window.location.reload(), 350);
     } finally {
       setBusy(null);
     }
@@ -494,14 +535,21 @@ export function PlanosEmpresaPanel() {
                     "Plano atual"
                   ) : (
                     <>
-                      {selfServiceUnlocked
-                        ? "Mudar plano agora"
-                        : tipo === "upgrade"
-                          ? "Solicitar upgrade"
-                          : tipo === "downgrade"
-                            ? "Solicitar downgrade"
-                            : "Solicitar troca"}
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      {selfServiceUnlocked ? (
+                        <>
+                          Mudar plano agora
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      ) : (
+                        <>
+                          <MessageCircle className="mr-2 h-4 w-4" />
+                          {tipo === "upgrade"
+                            ? "Pedir upgrade no WhatsApp"
+                            : tipo === "downgrade"
+                              ? "Pedir downgrade no WhatsApp"
+                              : "Pedir alteração no WhatsApp"}
+                        </>
+                      )}
                     </>
                   )}
                 </button>
@@ -579,7 +627,7 @@ export function PlanosEmpresaPanel() {
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             {selfServiceUnlocked
               ? "Como um token já foi validado, administradores podem mudar o plano imediatamente."
-              : "Sem token, mudanças de plano são solicitadas no app e ativadas pelo servidor."}
+              : "Sem token, qualquer upgrade ou downgrade deve ser solicitado ao proprietário pelo WhatsApp (13) 99119-9349."}
           </p>
         </div>
         <div className="rounded-2xl border bg-card p-4">
@@ -597,7 +645,7 @@ export function PlanosEmpresaPanel() {
         {profile?.email ? "Conta: " + profile.email + ". " : ""}
         {selfServiceUnlocked
           ? " Esta empresa possui autogestão de planos liberada por token."
-          : " Valores exibidos são do catálogo comercial atual. Solicitações dependem de ativação no Supabase."}
+          : " Sem token, upgrade ou downgrade só pode ser solicitado ao proprietário no WhatsApp (13) 99119-9349."}
       </p>
     </section>
   );
