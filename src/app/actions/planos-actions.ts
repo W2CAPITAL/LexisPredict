@@ -252,7 +252,6 @@ export async function liberarEmpresaPlanoAction(
         plano_bloqueio_motivo: null,
         plano_expira_em: expiresAt,
         billing_status: "active",
-        onboarding_completed: false,
       })
       .eq("id", id)
       .select("id, plano, plano_bloqueado, plano_expira_em")
