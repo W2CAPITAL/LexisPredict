@@ -90,6 +90,7 @@ export function PlanosEmpresaPanel() {
     daysLeft,
     setupRequired,
     serverError,
+    selfServiceUnlocked,
   } = usePlano();
   const { profile, isAdmin, isSuperAdmin } = useAdmin();
   const { toast } = useToast();
@@ -155,10 +156,16 @@ export function PlanosEmpresaPanel() {
         });
         return;
       }
+      const changedNow = "selfService" in r && Boolean(r.selfService);
       toast({
-        title: "Solicitação registrada",
-        description: PLAN_LABEL[id] + " · " + ciclo + ". A alteração entra após ativação comercial.",
+        title: changedNow ? "Plano alterado" : "Solicitação registrada",
+        description: changedNow
+          ? PLAN_LABEL[id] + " foi liberado imediatamente pela sua autorização de token."
+          : PLAN_LABEL[id] + " · " + ciclo + ". A alteração entra após ativação comercial.",
       });
+      if (changedNow) {
+        window.setTimeout(() => window.location.reload(), 350);
+      }
     } finally {
       setBusy(null);
     }
@@ -297,60 +304,82 @@ export function PlanosEmpresaPanel() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[24px] border border-violet-500/20 bg-card shadow-sm">
-        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-700 dark:text-violet-300">
-              <KeyRound className="h-5 w-5" />
+      {selfServiceUnlocked ? (
+        <div className="overflow-hidden rounded-[24px] border border-violet-500/25 bg-violet-500/5 shadow-sm">
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                <KeyRound className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+                  Token já utilizado
+                </p>
+                <h3 className="mt-1 text-lg font-black tracking-tight">Autogestão de planos liberada</h3>
+                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                  Esta empresa já validou um token de liberação. Administradores podem alternar livremente entre os planos sem novo pagamento ou novo token.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
-                Liberação especial
-              </p>
-              <h3 className="mt-1 text-lg font-black tracking-tight">Ativar plano com token</h3>
-              <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
-                Use um token autorizado para liberar o plano selecionado sem cobrança. O token é validado no servidor e não é armazenado.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid w-full gap-2 sm:grid-cols-[150px_minmax(220px,1fr)_auto] lg:max-w-2xl">
-            <select
-              value={courtesyPlan}
-              onChange={(e) => setCourtesyPlan(e.target.value as PlanId)}
-              disabled={!canChange || courtesyBusy}
-              className="h-10 rounded-xl border bg-background px-3 text-sm font-semibold outline-none ring-offset-background focus:ring-2 focus:ring-ring"
-              aria-label="Plano para liberação por token"
-            >
-              {PLAN_IDS.map((id) => (
-                <option key={id} value={id}>{PLAN_LABEL[id]}</option>
-              ))}
-            </select>
-            <Input
-              type="password"
-              value={courtesyToken}
-              onChange={(e) => setCourtesyToken(e.target.value)}
-              placeholder="Token de liberação"
-              autoComplete="off"
-              disabled={!canChange || courtesyBusy}
-              className="h-10 rounded-xl"
-            />
-            <Button
-              type="button"
-              onClick={() => void onActivateCourtesy()}
-              disabled={!canChange || courtesyBusy || !courtesyToken.trim()}
-              className="h-10 bg-violet-600 font-semibold text-white hover:bg-violet-700"
-            >
-              {courtesyBusy ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <KeyRound className="mr-2 h-4 w-4" />
-              )}
-              Liberar
-            </Button>
+            <Badge className="w-fit bg-violet-600 text-white">Acesso permanente</Badge>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="overflow-hidden rounded-[24px] border border-violet-500/20 bg-card shadow-sm">
+          <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                <KeyRound className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+                  Liberação especial
+                </p>
+                <h3 className="mt-1 text-lg font-black tracking-tight">Ativar plano com token</h3>
+                <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
+                  Ao validar um token, além de liberar o plano sem cobrança, a empresa passa a poder alterar o plano livremente nas configurações.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-[150px_minmax(220px,1fr)_auto] lg:max-w-2xl">
+              <select
+                value={courtesyPlan}
+                onChange={(e) => setCourtesyPlan(e.target.value as PlanId)}
+                disabled={!canChange || courtesyBusy}
+                className="h-10 rounded-xl border bg-background px-3 text-sm font-semibold outline-none ring-offset-background focus:ring-2 focus:ring-ring"
+                aria-label="Plano para liberação por token"
+              >
+                {PLAN_IDS.map((id) => (
+                  <option key={id} value={id}>{PLAN_LABEL[id]}</option>
+                ))}
+              </select>
+              <Input
+                type="password"
+                value={courtesyToken}
+                onChange={(e) => setCourtesyToken(e.target.value)}
+                placeholder="Token de liberação"
+                autoComplete="off"
+                disabled={!canChange || courtesyBusy}
+                className="h-10 rounded-xl"
+              />
+              <Button
+                type="button"
+                onClick={() => void onActivateCourtesy()}
+                disabled={!canChange || courtesyBusy || !courtesyToken.trim()}
+                className="h-10 bg-violet-600 font-semibold text-white hover:bg-violet-700"
+              >
+                {courtesyBusy ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <KeyRound className="mr-2 h-4 w-4" />
+                )}
+                Liberar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-4">
         {PLAN_IDS.map((id) => {
@@ -462,11 +491,13 @@ export function PlanosEmpresaPanel() {
                     "Plano atual"
                   ) : (
                     <>
-                      {tipo === "upgrade"
-                        ? "Solicitar upgrade"
-                        : tipo === "downgrade"
-                          ? "Solicitar downgrade"
-                          : "Solicitar troca"}
+                      {selfServiceUnlocked
+                        ? "Mudar plano agora"
+                        : tipo === "upgrade"
+                          ? "Solicitar upgrade"
+                          : tipo === "downgrade"
+                            ? "Solicitar downgrade"
+                            : "Solicitar troca"}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -540,10 +571,12 @@ export function PlanosEmpresaPanel() {
         <div className="rounded-2xl border bg-card p-4">
           <div className="flex items-center gap-2">
             <Clock3 className="h-4 w-4 text-primary" />
-            <p className="text-sm font-bold">Ativação controlada</p>
+            <p className="text-sm font-bold">{selfServiceUnlocked ? "Planos livres por token" : "Ativação controlada"}</p>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            Mudanças de plano são solicitadas no app e ativadas pelo servidor.
+            {selfServiceUnlocked
+              ? "Como um token já foi validado, administradores podem mudar o plano imediatamente."
+              : "Sem token, mudanças de plano são solicitadas no app e ativadas pelo servidor."}
           </p>
         </div>
         <div className="rounded-2xl border bg-card p-4">
@@ -559,7 +592,9 @@ export function PlanosEmpresaPanel() {
 
       <p className="text-xs leading-relaxed text-muted-foreground">
         {profile?.email ? "Conta: " + profile.email + ". " : ""}
-        Valores exibidos são do catálogo comercial atual. Solicitações não alteram a assinatura automaticamente até a ativação no Supabase.
+        {selfServiceUnlocked
+          ? " Esta empresa possui autogestão de planos liberada por token."
+          : " Valores exibidos são do catálogo comercial atual. Solicitações dependem de ativação no Supabase."}
       </p>
     </section>
   );
