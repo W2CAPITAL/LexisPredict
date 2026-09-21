@@ -15,12 +15,22 @@ export function isGuestMode(): boolean {
 export function enableGuestMode() {
   if (typeof window === "undefined") return;
   localStorage.setItem(GUEST_MODE_KEY, "1");
+  localStorage.setItem("lexis_data_provider_cfg_v1", JSON.stringify({
+    kind: "local",
+    sheets: { webhookUrl: "", token: "" },
+    deviceId: "guest-browser",
+  }));
   document.cookie = "lexis_guest=1; path=/; max-age=86400; samesite=lax";
 }
 
 export function disableGuestMode() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(GUEST_MODE_KEY);
+  localStorage.setItem("lexis_data_provider_cfg_v1", JSON.stringify({
+    kind: "supabase",
+    sheets: { webhookUrl: "", token: "" },
+    deviceId: "browser",
+  }));
   document.cookie = "lexis_guest=; path=/; max-age=0; samesite=lax";
 }
 
