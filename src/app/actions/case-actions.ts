@@ -1125,7 +1125,7 @@ export async function fetchCompanyProcessosAction() {
     const ctx = await getUserContext();
     const empresa_id = ctx.empresa_id;
     if (!empresa_id) return empty;
-    const companyWide = resolveCaseScope(ctx as any) === 'company';
+    const companyWide = resolveCaseScope(ctx as any) === 'empresa';
     if (!companyWide) {
       return { ...empty, error: "supervisao_required" };
     }
@@ -1441,7 +1441,7 @@ export async function reclassificarExecutivoCarteiraAction() {
   try {
     const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
     const admin = await getSupabaseAdmin();
-    const companyWide = resolveCaseScope(ctx as any) === 'company';
+    const companyWide = resolveCaseScope(ctx as any) === 'empresa';
 
     let page = 0;
     const pageSize = 500;
@@ -1630,7 +1630,7 @@ export async function batchScanExecutivoAction(opts?: {
     return { success: false, done: 0, error: 'Função disponível para Administrador, Supervisor ou Superadmin.' };
   }
 
-  const escopoEmpresa = resolveCaseScope(ctx as any) === 'company';
+  const escopoEmpresa = resolveCaseScope(ctx as any) === 'empresa';
   const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 50);
   const onlyMissing = opts?.onlyMissing !== false;
   const priorizarEncerrados = opts?.priorizarEncerrados !== false;
