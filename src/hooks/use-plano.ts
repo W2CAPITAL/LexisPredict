@@ -37,6 +37,7 @@ export function usePlano() {
   const [serverLoaded, setServerLoaded] = useState(false);
   const [setupRequired, setSetupRequired] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [billingStatus, setBillingStatus] = useState<string | null>(null);
   const [selfServiceUnlocked, setSelfServiceUnlocked] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [navLayout, setNavLayout] = useState<NavLayoutMode>("dock");
@@ -68,6 +69,7 @@ export function usePlano() {
     if (isSuperAdmin) {
       setSetupRequired(false);
       setServerError(null);
+      setBillingStatus("active");
       setSelfServiceUnlocked(true);
       setOnboardingCompleted(true);
       setServerLoaded(true);
@@ -80,6 +82,7 @@ export function usePlano() {
       setServerLoaded(true);
       setAss(CLEAN_FALLBACK);
       setPlan("essencial");
+      setBillingStatus(null);
       setSelfServiceUnlocked(false);
       setOnboardingCompleted(false);
       return;
@@ -115,6 +118,7 @@ export function usePlano() {
 
       setSetupRequired(false);
       setServerError(null);
+      setBillingStatus(res.billingStatus ?? null);
       setSelfServiceUnlocked(!!res.selfServiceUnlocked);
       setOnboardingCompleted(!!res.onboardingCompleted);
       const serverNav: NavLayoutMode = res.navLayout === "vertical" ? "vertical" : "dock";
@@ -194,6 +198,7 @@ export function usePlano() {
       setupRequired,
       serverError,
       serverLoaded,
+      billingStatus,
       selfServiceUnlocked,
       onboardingCompleted,
       navLayout,
@@ -208,6 +213,6 @@ export function usePlano() {
         return hrefLiberado(href, plan);
       },
     }),
-    [plan, empresaId, ass, left, expired, blocked, locked, setupRequired, serverError, isSuperAdmin, serverLoaded, selfServiceUnlocked, onboardingCompleted, navLayout, sidebarCompact]
+    [plan, empresaId, ass, left, expired, blocked, locked, setupRequired, serverError, isSuperAdmin, serverLoaded, billingStatus, selfServiceUnlocked, onboardingCompleted, navLayout, sidebarCompact]
   );
 }
