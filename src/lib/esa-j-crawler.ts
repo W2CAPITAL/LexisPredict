@@ -1,0 +1,285 @@
+/**
+ * e-SAJ Crawler — domínios expandidos (família e-SAJ)
+ * Mesmo motor do Enriquecer e-SAJ da Automação Judicial.
+ */
+import * as cheerio from 'cheerio';
+
+const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_RETRIES = 3;
+const REQUEST_RETRY_DELAY_MS = 1000;
+
+/** Código CNJ (2 dígitos do tribunal) → domínio e-SAJ */
+const TRIBUNAIS: Record<string, { nome: string; dominio: string }> = {
+  '01': { nome: 'TJAC', dominio: 'esaj.tjac.jus.br' },
+  '02': { nome: 'TJAL', dominio: 'www2.tjal.jus.br' },
+  '04': { nome: 'TJAM', dominio: 'consultasaj.tjam.jus.br' },
+  '05': { nome: 'TJBA', dominio: 'esaj.tjba.jus.br' },
+  '06': { nome: 'TJCE', dominio: 'esaj.tjce.jus.br' },
+  '12': { nome: 'TJMS', dominio: 'esaj.tjms.jus.br' },
+  '26': { nome: 'TJSP', dominio: 'esaj.tjsp.jus.br' },
+};
+
+export interface Parte {
+  nome: string;
+  tipoParticipacao: string;
+  advogados: string[];
+}
+
+export interface Movimentacao {
+  data: string;
+  descricao: string;
+  isCustas?: boolean;
+}
+
+export interface DadosGrau {
+  classe?: string;
+  area?: string;
+  assunto?: string;
+  data?: string;
+  juiz?: string;
+  valor?: string;
+  partes?: Parte[];
+  movimentações?: Movimentacao[];
+  custasDetectadas?: string[];
+  ERROR?: string;
+}
+
+export interface EsaJResult {
+  id: string;
+  tribunal?: string;
+  dominio?: string;
+  'Primeiro Grau'?: DadosGrau;
+  'Segundo Grau'?: DadosGrau;
+}
+
+function cleanData(data: string | null | undefined): string {
+  if (!data) return '';
+  return data
+    .replace(/\n/g, ' ')
+    .replace(/&nbsp;?/g, ' ')
+    .replace(/\t/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/\xa0/g, '')
+    .replace(/None/g, '')
+    .replace(/ +/g, ' ')
+    .trim();
+}
+
+function parseCNJ(cnj: string) {
+  const clean = cnj.replace(/\D/g, '');
+  if (clean.length !== 20) throw new Error('CNJ deve ter 20 dígitos');
+
+  const formatado = `${clean.slice(0, 7)}-${clean.slice(7, 9)}.${clean.slice(9, 13)}.${clean.slice(13, 14)}.${clean.slice(14, 16)}.${clean.slice(16)}`;
+  const parts = formatado.split('.');
+
+  return {
+    numero_processo: formatado,
+    numeroDigitoAnoUnificado: `${parts[0]}.${parts[1]}`,
+    foro: clean.slice(-4),
+    tribunal: parts[3],
+  };
+}
+
+async function sendRequest(url: string): Promise<cheerio.CheerioAPI | { ERROR: string }> {
+  let lastError: string | null = null;
+
+  for (let attempt = 1; attempt <= REQUEST_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      });
+      clearTimeout(timeout);
+
+      if (res.status >= 500) {
+        lastError = `HTTP ${res.status}`;
+        if (attempt < REQUEST_RETRIES) await new Promise((r) => setTimeout(r, REQUEST_RETRY_DELAY_MS));
+        continue;
+      }
+
+      const html = await res.text();
+      const $ = cheerio.load(html);
+
+      const msgErro = $('#mensagemRetorno li').first().text();
+      if (msgErro) {
+        return { ERROR: cleanData(msgErro) };
+      }
+
+      return $;
+    } catch (err: any) {
+      lastError = err.name === 'AbortError' ? 'Timeout' : err.message;
+      if (attempt < REQUEST_RETRIES) await new Promise((r) => setTimeout(r, REQUEST_RETRY_DELAY_MS));
+    }
+  }
+
+  return { ERROR: lastError || 'Falha ao consultar o processo' };
+}
+
+function getPartes($: cheerio.CheerioAPI): Parte[] {
+  let rows = $('#tableTodasPartes tr');
+  if (rows.length === 0) rows = $('#tablePartesPrincipais tr');
+
+  const partes: Parte[] = [];
+  rows.each((_, el) => {
+    const nomesRaw = cleanData($(el).find('.nomeParteEAdvogado').text());
+    const tipo = cleanData($(el).find('.tipoDeParticipacao').text());
+    if (!nomesRaw) return;
+
+    const split = nomesRaw.split(/ Advogado: | Advogada: /i);
+    const nome = cleanData(split[0]);
+    const advogados = split.slice(1).map((a) => cleanData(a)).filter(Boolean);
+
+    partes.push({ nome, tipoParticipacao: tipo, advogados });
+  });
+  return partes;
+}
+
+function isCustasText(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('custa') ||
+    lower.includes('guia') ||
+    lower.includes('recolhimento') ||
+    lower.includes('taxa judiciária') ||
+    lower.includes('dívida ativa') ||
+    lower.includes('grj') ||
+    lower.includes('custas processuais')
+  );
+}
+
+function getMovimentos($: cheerio.CheerioAPI, grau: 1 | 2): Movimentacao[] {
+  const tags =
+    grau === 1
+      ? { container: '.containerMovimentacao', data: 'dataMovimentacao', descricao: 'descricaoMovimentacao' }
+      : { container: '.movimentacaoProcesso', data: 'dataMovimentacaoProcesso', descricao: 'descricaoMovimentacaoProcesso' };
+
+  const movs: Movimentacao[] = [];
+  const seen = new Set<string>();
+
+  $(tags.container).each((_, el) => {
+    const data = cleanData($(el).find(`.${tags.data}`).text());
+    let descricao = cleanData($(el).find(`.${tags.descricao}`).text());
+    descricao = descricao.replace(/\s+/g, ' ');
+
+    const key = `${data}|${descricao.slice(0, 80)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    if (data || descricao) {
+      movs.push({
+        data,
+        descricao,
+        isCustas: isCustasText(descricao),
+      });
+    }
+  });
+
+  return movs;
+}
+
+function parseData($: cheerio.CheerioAPI): DadosGrau {
+  const movimentos = getMovimentos($, 1);
+
+  const custasDetectadas = movimentos
+    .filter((m) => m.isCustas)
+    .map((m) => `${m.data} - ${m.descricao}`)
+    .slice(0, 8);
+
+  return {
+    classe: cleanData($('#classeProcesso').text()),
+    area: cleanData($('#areaProcesso').text()),
+    assunto: cleanData($('#assuntoProcesso').text()),
+    data: cleanData($('#dataHoraDistribuicaoProcesso').text()).slice(0, 10),
+    juiz: cleanData($('#juizProcesso').text()),
+    valor: cleanData($('#valorAcaoProcesso').text()),
+    partes: getPartes($),
+    movimentações: movimentos,
+    custasDetectadas: custasDetectadas.length > 0 ? custasDetectadas : undefined,
+  };
+}
+
+async function buscaPrimeiroGrau(processo: ReturnType<typeof parseCNJ>, dominio: string): Promise<DadosGrau> {
+  const pathSearch = dominio.includes('tjms') ? 'cpopg5' : 'cpopg';
+  const url =
+    `https://${dominio}/${pathSearch}/search.do?conversationId=&cbPesquisa=NUMPROC` +
+    `&numeroDigitoAnoUnificado=${processo.numeroDigitoAnoUnificado}` +
+    `&foroNumeroUnificado=${processo.foro}` +
+    `&dadosConsulta.valorConsultaNuUnificado=${processo.numero_processo}` +
+    `&dadosConsulta.valorConsultaNuUnificado=UNIFICADO&dadosConsulta.valorConsulta=` +
+    `&dadosConsulta.tipoNuProcesso=UNIFICADO`;
+
+  const html = await sendRequest(url);
+  if ('ERROR' in html) return html as DadosGrau;
+
+  const data = parseData(html);
+  data.movimentações = getMovimentos(html, 1);
+  return data;
+}
+
+async function buscaCodigoSegundoGrau(url: string): Promise<string> {
+  const html = await sendRequest(url);
+  if ('ERROR' in html) return '';
+  return html('#processoSelecionado').attr('value') || '';
+}
+
+async function buscaSegundoGrau(processo: ReturnType<typeof parseCNJ>, dominio: string): Promise<DadosGrau> {
+  let url =
+    `https://${dominio}/cposg5/search.do?cbPesquisa=NUMPROC` +
+    `&numeroDigitoAnoUnificado=${processo.numeroDigitoAnoUnificado}` +
+    `&foroNumeroUnificado=${processo.foro}` +
+    `&dePesquisaNuUnificado=${processo.numero_processo}` +
+    `&dePesquisaNuUnificado=UNIFICADO&dePesquisa=&tipoNuProcesso=UNIFICADO`;
+
+  const codigo = await buscaCodigoSegundoGrau(url);
+  if (codigo) {
+    url = `https://${dominio}/cposg5/show.do?processo.codigo=${codigo}`;
+  }
+
+  const html = await sendRequest(url);
+  if ('ERROR' in html) return html as DadosGrau;
+
+  const data = parseData(html);
+  data.movimentações = getMovimentos(html, 2);
+  return data;
+}
+
+export function isEsaJTribunalCode(code2: string): boolean {
+  return !!TRIBUNAIS[code2];
+}
+
+export async function fetchEsaJProcess(cnj: string): Promise<EsaJResult | null> {
+  try {
+    const processo = parseCNJ(cnj);
+    const tribunalInfo = TRIBUNAIS[processo.tribunal];
+    if (!tribunalInfo) return null;
+
+    const [grau1, grau2] = await Promise.all([
+      buscaPrimeiroGrau(processo, tribunalInfo.dominio),
+      buscaSegundoGrau(processo, tribunalInfo.dominio),
+    ]);
+
+    const result: EsaJResult = {
+      id: processo.numero_processo,
+      tribunal: tribunalInfo.nome,
+      dominio: tribunalInfo.dominio,
+    };
+
+    if (grau1.classe || grau1.ERROR || (grau1.movimentações && grau1.movimentações.length)) {
+      result['Primeiro Grau'] = grau1;
+    }
+    if (grau2.classe || grau2.ERROR || (grau2.movimentações && grau2.movimentações.length)) {
+      result['Segundo Grau'] = grau2;
+    }
+
+    return result;
+  } catch (err: any) {
+    console.error('[e-SAJ Crawler]', err.message);
+    return null;
+  }
+}
