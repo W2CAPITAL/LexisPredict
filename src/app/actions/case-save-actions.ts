@@ -306,8 +306,24 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
       return { success: false, message: 'Você só pode editar processos da sua própria carteira.' };
     }
 
-    // Editing never transfers ownership. New cases belong to the authenticated creator.
-    processed.created_by = existing ? (existing.created_by ?? existing.dados?.created_by ?? null) : auth_id;
+    // Edição nunca transfere propriedade.
+    // Novo processo: Administrador/Operador cria para si; Supervisor/Superadmin
+    // pode atribuir a um usuário válido da mesma empresa.
+    if (existing) {
+      processed.created_by = existing.created_by ?? existing.dados?.created_by ?? null;
+    } else if ((ctx.isSupervisor || ctx.isSuperAdmin) && (caseData as any).created_by) {
+      const requestedOwner = String((caseData as any).created_by).trim();
+      const admin = await getSupabaseAdmin();
+      const { data: ownerProfile } = await admin
+        .from('usuarios')
+        .select('auth_user_id')
+        .eq('empresa_id', empresa_id)
+        .eq('auth_user_id', requestedOwner)
+        .maybeSingle();
+      processed.created_by = ownerProfile?.auth_user_id || auth_id;
+    } else {
+      processed.created_by = auth_id;
+    }
     if (existing?.protocolo_ref) processed.protocolo = existing.protocolo_ref;
 
     const previousReturn = String(existing?.ultimo_retorno || existing?.UltimoRetorno || existing?.dados?.ultimoRetorno || existing?.dados?.ultimo_retorno || '');
