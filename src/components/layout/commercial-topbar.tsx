@@ -32,15 +32,22 @@ export function CommercialTopbar() {
       return;
     }
 
-    supabase
-      .from("empresas")
-      .select("nome")
-      .eq("id", empresaId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled && data?.nome) setCompanyName(String(data.nome));
-      })
-      .catch(() => {});
+    void (async () => {
+      try {
+        const result = await supabase
+          .from("empresas")
+          .select("nome")
+          .eq("id", empresaId)
+          .maybeSingle();
+
+        const data = result?.data as { nome?: string | null } | null;
+        if (!cancelled && data?.nome) {
+          setCompanyName(String(data.nome));
+        }
+      } catch {
+        // Mantém o nome padrão se a empresa não puder ser carregada.
+      }
+    })();
 
     return () => {
       cancelled = true;
