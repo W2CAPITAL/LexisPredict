@@ -2,7 +2,7 @@
 
 import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
-import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
+import { defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -1105,11 +1105,7 @@ function CasesContent() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
-<div className="px-4 sm:px-6 pt-4">
-            <OpsOrbitalStrip nodes={opsNodes} className="mb-4" />
-          </div>
-
-        <header className="flex shrink-0 flex-col gap-4 px-5 pb-4 pt-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
+<header className="flex shrink-0 flex-col gap-4 px-5 pb-4 pt-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
               <Briefcase size={14} /> Processos
