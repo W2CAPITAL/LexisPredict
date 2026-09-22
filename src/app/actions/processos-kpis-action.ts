@@ -62,7 +62,7 @@ export async function fetchProcessosEmpresaKpisAction(): Promise<ProcessosEmpres
 
     const empresaId = String(ctx.empresa_id);
     const authId = String(ctx.auth_id || '');
-    const companyWide = !!(ctx.isSupervisor || ctx.isSuperAdmin);
+    const companyWide = ctx.caseScope === "empresa" || !!(ctx.isSupervisor || ctx.isSuperAdmin);
     const pageSize = 1000;
     let offset = 0;
     let total = 0;
