@@ -136,7 +136,7 @@ export function SidebarVertical() {
       (profile as any)?.email ||
       "Operação"
   );
-  const firstName = displayName.trim().split(/\\s+/)[0] || "Operação";
+  const firstName = displayName.trim().split(/\s+/)[0] || "Operação";
   const mobileSection =
     mainItems.find((item) => active(item.href))?.label || "Operação jurídica";
 
@@ -304,7 +304,7 @@ export function SidebarVertical() {
 
       <nav
         data-lexis-mobile-bottom-nav
-        className="fixed inset-x-0 bottom-0 z-40 grid h-[72px] grid-cols-4 border-t border-[#dfe7f2] bg-white/95 px-2 pt-1.5 shadow-[0_-10px_30px_rgba(14,42,78,.10)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid h-[74px] grid-cols-5 border-t border-[#dfe7f2] bg-white/95 px-1.5 pt-1.5 shadow-[0_-10px_30px_rgba(14,42,78,.10)] backdrop-blur-xl md:hidden"
         aria-label="Navegação principal móvel"
       >
         <Link href="/" prefetch={false} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold", active("/") ? "text-[#1769ff]" : "text-[#6f8098]")}>
@@ -315,6 +315,17 @@ export function SidebarVertical() {
           <Briefcase className="h-5 w-5" />
           <span>Processos</span>
         </Link>
+        <button
+          type="button"
+          onClick={handleOpenScanner}
+          aria-label="Abrir Scanner DataJud e DJEN"
+          className="relative -mt-5 flex min-w-0 flex-col items-center justify-center gap-1 text-[9px] font-black text-[#1769ff]"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border-4 border-white bg-[linear-gradient(135deg,#1769ff,#00a8ff)] text-white shadow-[0_10px_26px_rgba(23,105,255,.34)]">
+            <Zap className="h-5 w-5" />
+          </span>
+          <span>Scanner</span>
+        </button>
         <Link href="/tarefas" prefetch={false} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold", active("/tarefas") ? "text-[#1769ff]" : "text-[#6f8098]")}>
           <ListTodo className="h-5 w-5" />
           <span>Tarefas</span>
