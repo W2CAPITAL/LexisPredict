@@ -25,7 +25,6 @@ import {
   getNotificationBootstrapAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
-  syncMyNotificationsAction,
   type NotificationPreferences,
 } from "@/app/actions/notification-actions";
 
@@ -129,11 +128,10 @@ export function NotificationCenter() {
 
   const authId = String((profile as any)?.auth_user_id || "").trim();
 
-  const load = useCallback(async (withSync = true) => {
+  const load = useCallback(async () => {
     if (!authId) return;
     setLoading(true);
     try {
-      if (withSync) await syncMyNotificationsAction();
       const res = await getNotificationBootstrapAction(30);
       if (res.ok) {
         setItems((res.notifications || []) as LexisNotification[]);
@@ -146,7 +144,7 @@ export function NotificationCenter() {
 
   useEffect(() => {
     if (!authId) return;
-    void load(true);
+    void load();
   }, [authId, load]);
 
   useEffect(() => {
@@ -172,6 +170,11 @@ export function NotificationCenter() {
 
             if (payload.eventType === "DELETE") {
               setItems((old) => old.filter((item) => item.id !== row.id));
+              return;
+            }
+
+            if (payload.eventType === "INSERT" && !prefRef.current.in_app_enabled) {
+              browserNotify(row, prefRef.current);
               return;
             }
 
@@ -241,7 +244,7 @@ export function NotificationCenter() {
             </p>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void load(true)} disabled={loading} title="Atualizar">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void load()} disabled={loading} title="Atualizar">
               <RefreshCcw className={cn("h-4 w-4", loading && "animate-spin")} />
             </Button>
             {unread > 0 ? (
