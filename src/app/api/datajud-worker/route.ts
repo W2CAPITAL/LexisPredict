@@ -27,11 +27,13 @@ export async function POST(request: Request) {
   if (!['datajud', 'djen', 'both'].includes(mode)) mode = 'both';
   let scope = (searchParams.get('scope') as 'full' | 'cumprimento') || 'full';
   if (!['full', 'cumprimento'].includes(scope)) scope = 'full';
+  let since = searchParams.get('since');
 
   try {
     const body = await request.clone().json().catch(() => ({}));
     if (body?.mode && ['datajud', 'djen', 'both'].includes(body.mode)) mode = body.mode;
     if (body?.scope && ['full', 'cumprimento'].includes(body.scope)) scope = body.scope;
+    if (body?.since) since = String(body.since);
   } catch {
     /* ignore */
   }
@@ -47,10 +49,14 @@ export async function POST(request: Request) {
   }
 
   const start = Date.now();
-  console.log(`[Omni Worker] Empresa ${empresa_id} mode=${mode} scope=${scope} sequential`);
+  console.log(`[Omni Worker] Empresa ${empresa_id} mode=${mode} scope=${scope} since=${since || '-'} sequential`);
 
   try {
-    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE, empresa_id, { scope });
+    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE, empresa_id, {
+      scope,
+      mode,
+      since,
+    });
     if (casesToAudit.length === 0) {
       return NextResponse.json({ success: true, processed: 0, message: 'Fila limpa.' });
     }
@@ -79,6 +85,7 @@ export async function POST(request: Request) {
       failedCount,
       mode,
       scope,
+      since,
       sequential: true,
       duration: `${Date.now() - start}ms`,
     });
