@@ -26,7 +26,7 @@ import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/app/actions/notification-actions";
-import type { LexisNotification } from "@/components/system/notification-center";
+import type { LexisNotification } from "@/lib/notifications";
 
 type Filter = "todas" | "nao_lidas" | "prazo" | "tribunal" | "tarefa" | "sistema";
 
