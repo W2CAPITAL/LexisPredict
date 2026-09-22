@@ -31,6 +31,7 @@ import {
   StickyNote,
   Upload,
   Users,
+  Zap,
   Wallet,
   X,
 } from "lucide-react";
@@ -42,6 +43,7 @@ import { operatorRouteAllowed } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
+import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 
 type NavItem = {
   label: string;
@@ -87,6 +89,7 @@ export function SidebarVertical() {
   const { profile, signOut } = useAuth();
   const { role, isSupervisor, isSuperAdmin } = useAdmin();
   const { plan } = usePlano();
+  const openScanner = useDataJudScanStore((state) => state.openScanner);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -137,6 +140,15 @@ export function SidebarVertical() {
   const mobileSection =
     mainItems.find((item) => active(item.href))?.label || "Operação jurídica";
 
+  const handleOpenScanner = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("lexis-need-scanner"));
+    }
+    openScanner();
+    setMobileOpen(false);
+    setToolsOpen(false);
+  };
+
   const SidebarBody = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="flex h-full flex-col bg-[linear-gradient(180deg,#061d35_0%,#082944_55%,#0a3554_100%)] text-white">
       <div className="flex h-[82px] shrink-0 items-center border-b border-white/10 px-5">
@@ -185,6 +197,24 @@ export function SidebarVertical() {
               </Link>
             );
           })}
+
+          <button
+            type="button"
+            onClick={handleOpenScanner}
+            className="group mt-2 flex h-12 w-full items-center gap-3 rounded-xl border border-[#2f7dff]/35 bg-[linear-gradient(135deg,rgba(20,103,255,.22),rgba(0,197,255,.10))] px-3.5 text-left text-[13px] font-bold text-white shadow-[inset_0_0_0_1px_rgba(120,190,255,.06),0_8px_20px_rgba(0,0,0,.10)] transition hover:border-[#5ca0ff]/60 hover:bg-[linear-gradient(135deg,rgba(20,103,255,.32),rgba(0,197,255,.14))]"
+            aria-label="Abrir Scanner DataJud e DJEN"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#4b91ff]/40 bg-[#07182d] text-[#65b5ff] shadow-[0_0_18px_rgba(41,126,255,.20)]">
+              <Zap className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">Scanner DataJud + DJEN</span>
+              <span className="mt-0.5 block truncate text-[9px] font-semibold uppercase tracking-[.12em] text-[#9fc2e4]">
+                Local · Nuvem · Both
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 text-[#8fb9e3] transition group-hover:translate-x-0.5 group-hover:text-white" />
+          </button>
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4">
