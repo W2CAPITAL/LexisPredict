@@ -19,6 +19,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { operatorRouteAllowed } from "@/lib/roles";
+import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 
 const primary = [
   ["Painel", "/", LayoutDashboard],
@@ -110,10 +111,12 @@ export function SidebarDock() {
   return (
     <>
       <div data-lexis-sidebar data-lexis-dock className="hidden md:block h-0 w-0" aria-hidden />
+      <CommercialTopbar />
       <header
-        className="fixed top-0 inset-x-0 z-30 hidden h-14 items-center gap-2 border-b bg-card px-2 md:flex"
+        data-lexis-desktop-dock
+        className="fixed bottom-4 left-1/2 z-50 hidden h-16 max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-1.5 overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(180deg,rgba(8,35,61,.96),rgba(5,25,46,.98))] px-2 text-white shadow-[0_20px_50px_rgba(4,20,38,.30),inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-xl md:flex"
       >
-        <Link href="/" className="flex items-center gap-2 px-2" aria-label="Painel">
+        <Link href="/" className="flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/[.05] px-2" aria-label="Painel">
           <img src="/logo.png" alt="" className="h-7 w-7 rounded-md object-contain" />
         </Link>
         <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]">
@@ -126,8 +129,8 @@ export function SidebarDock() {
                 href={item.href}
                 prefetch={false}
                 className={cn(
-                  "flex h-10 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium",
-                  active ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                  "flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition",
+                  active ? "bg-[#1769ff] text-white shadow-[0_8px_20px_rgba(23,105,255,.28)]" : "text-[#d4e4f5] hover:bg-white/10 hover:text-white",
                 )}
               >
                 <Icon size={15} />
@@ -138,7 +141,7 @@ export function SidebarDock() {
         </nav>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <button className="flex h-10 items-center gap-1.5 rounded-lg px-3 text-xs font-medium hover:bg-muted">
+            <button className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-[#d4e4f5] hover:bg-white/10 hover:text-white">
               <Menu size={15} /> Mais
             </button>
           </SheetTrigger>
@@ -185,7 +188,7 @@ export function SidebarDock() {
               window.dispatchEvent(new Event("lexis-need-scanner"));
               toggleMinimize();
             }}
-            className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-muted"
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-[#d4e4f5] hover:bg-white/10 hover:text-white"
             title="Scanner"
           >
             <Zap size={16} className={status === "running" ? "animate-pulse" : ""} />
@@ -195,7 +198,7 @@ export function SidebarDock() {
         <button
           aria-label="Sair"
           onClick={() => void signOut()}
-          className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-muted"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-[#d4e4f5] hover:bg-white/10 hover:text-white"
         >
           <LogOut size={16} />
         </button>
