@@ -1,22 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { loadNavLayout, type NavLayoutMode } from "@/lib/nav-layout";
 import { SidebarVertical } from "./sidebar-vertical";
-import { SidebarDock } from "./sidebar-dock";
 
+/**
+ * Shell comercial oficial.
+ * O layout visual das telas públicas/comerciais usa sidebar vertical fixa.
+ * A antiga dock horizontal fica preservada no código para eventual modo alternativo,
+ * mas não é usada no shell principal.
+ */
 export function Sidebar() {
-  const [mode, setMode] = useState<NavLayoutMode>("dock");
-
-  useEffect(() => {
-    setMode(loadNavLayout());
-    const onChange = (event: Event) => {
-      const next = (event as CustomEvent).detail?.mode as NavLayoutMode | undefined;
-      setMode(next === "vertical" || next === "dock" ? next : loadNavLayout());
-    };
-    window.addEventListener("lexis-nav-layout", onChange);
-    return () => window.removeEventListener("lexis-nav-layout", onChange);
-  }, []);
-
-  return mode === "vertical" ? <SidebarVertical /> : <SidebarDock />;
+  return <SidebarVertical />;
 }
