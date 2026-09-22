@@ -60,7 +60,7 @@ const more = [
 export function SidebarDock() {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
-  const { role, isSupervisor, isSuperAdmin, canScan } = useAdmin();
+  const { role, isSupervisor, isSuperAdmin, canScan, canSeeCompany } = useAdmin();
   const { plan } = usePlano();
   const { status, toggleMinimize } = useDataJudScanStore();
   const [open, setOpen] = useState(false);
@@ -93,14 +93,14 @@ export function SidebarDock() {
 
   const main = filterNavByPlan(
     primary.map(([label, href, icon]) => ({
-      label: href === "/processos" ? (isSupervisor ? "Empresa" : "Processos") : label,
+      label: href === "/processos" ? (canSeeCompany ? "Empresa" : "Processos") : label,
       href,
       icon,
     })),
     isSuperAdmin ? "maximo" : plan,
   ).filter(
     (item) =>
-      (item.href !== "/processos" || isSupervisor) &&
+      (item.href !== "/processos" || canSeeCompany) &&
       (role !== "Operador" || operatorRouteAllowed(item.href)),
   );
 
