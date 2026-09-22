@@ -73,6 +73,16 @@ export function NotificationSettingsPanel() {
       const res = await saveNotificationPreferencesAction(next);
       if (!res.ok) throw new Error(res.error || "Falha ao salvar.");
       setPrefs(res.preferences);
+      try {
+        const canChatNotify =
+          res.preferences.chat &&
+          res.preferences.browser_enabled &&
+          "Notification" in window &&
+          Notification.permission === "granted";
+        localStorage.setItem("lexis_chat_notif", canChatNotify ? "granted" : "dismissed");
+      } catch {
+        /* legacy chat preference bridge */
+      }
     } catch (e: any) {
       toast({ title: "Não foi possível salvar", description: String(e?.message || e), variant: "destructive" });
     } finally {
