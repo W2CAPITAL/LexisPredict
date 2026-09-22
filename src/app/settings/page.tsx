@@ -1,6 +1,8 @@
 "use client";
 import { Crown } from 'lucide-react';
 import { NavLayoutNomePanel } from "@/components/settings/nav-layout-nome-panel";
+import { NotificationSettingsPanel } from "@/components/settings/notification-settings-panel";
+import { SecurityLimitsPanel } from "@/components/settings/security-limits-panel";
 
 import { verifyMasterPasswordAction } from "@/app/actions/master-auth-actions";
 import { changePasswordAction } from "@/app/actions/change-password-action";
@@ -143,7 +145,13 @@ export default function SettingsPage() {
   const [settingsQuery, setSettingsQuery] = useState('');
   const [chatNotifOn, setChatNotifOn] = useState(false);
   useEffect(() => {
-    const id = window.setTimeout(() => setSettingsBoot(false), 300);
+    const id = window.setTimeout(() => setSettingsBoot(false), 180);
+    try {
+      const section = new URLSearchParams(window.location.search).get("section");
+      if (section) setActiveTab(section);
+    } catch {
+      /* query preference is best effort */
+    }
     return () => window.clearTimeout(id);
   }, []);
   const { profile } = useAuth();
@@ -594,7 +602,7 @@ export default function SettingsPage() {
       <PageLoadingBar active={settingsBoot} />
       <main className="lexis-main-pad flex-1 flex flex-col h-dvh min-w-0 overflow-y-auto">
         {/* hero header */}
-        <header className="shrink-0 border-b border-border bg-card">
+        <header className="shrink-0 bg-transparent">
           <div className="mx-auto w-full px-4 sm:px-6 py-4 flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
@@ -602,11 +610,11 @@ export default function SettingsPage() {
                   <Settings className="text-primary" size={22} />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xl font-semibold tracking-tight truncate">
+                  <h1 className="text-[28px] font-black tracking-[-.04em] text-[#102447] truncate">
                     Configurações
                   </h1>
-                  <p className="text-xs text-muted-foreground">
-                    Gerencie sua conta, assinatura e preferências.
+                  <p className="text-sm text-[#617693]">
+                    Conta, notificações, segurança, assinatura e preferências do ambiente.
                   </p>
                 </div>
               </div>
@@ -636,11 +644,13 @@ export default function SettingsPage() {
         </header>
 
         <div className="flex-1">
-          <div className="mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+          <div className="mx-auto grid w-full max-w-[1500px] items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[250px_minmax(0,1fr)]">
             {/* navegação horizontal em chips */}
-            <nav aria-label="Seções das configurações" className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            <nav aria-label="Seções das configurações" className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin] lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-[#dfe7f2] lg:bg-white lg:p-2">
               {[
                 { id: "Plano", label: "Assinatura", icon: <Crown size={14} />, keywords: "plano assinatura licenca pagamento" },
+                { id: "Notificacoes", label: "Notificações", icon: <Bell size={14} />, keywords: "notificacao alerta prazo djen datajud tarefa navegador" },
+                { id: "Seguranca", label: "Segurança e limites", icon: <ShieldCheck size={14} />, keywords: "seguranca rls tenant cargo limite rate auth" },
                 { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
                 { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
                 { id: "Personalizacao", label: "Personalização", icon: <Wand2 size={14} />, keywords: "ui prefs metal botoes" },
@@ -668,10 +678,10 @@ export default function SettingsPage() {
                     aria-current={activeTab === item.id ? "page" : undefined}
                     onClick={() => setActiveTab(item.id)}
                     className={cn(
-                      "shrink-0 flex items-center gap-2 h-11 px-3.5 rounded-lg text-sm font-medium border transition-colors",
+                      "shrink-0 flex items-center gap-2 h-11 px-3.5 rounded-xl text-sm font-bold border transition-colors lg:w-full",
                       activeTab === item.id
-                        ? "bg-foreground text-background border-foreground"
-                        : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                        ? "border-[#cfe0ff] bg-[#eef5ff] text-[#145bd7]"
+                        : "border-transparent bg-transparent text-[#607590] hover:bg-[#f5f8fc] hover:text-[#18365f]"
                     )}
                   >
                     {item.icon}
@@ -681,11 +691,19 @@ export default function SettingsPage() {
             </nav>
 
             {/* conteúdo da aba */}
-            <div className="rounded-xl border border-border bg-card p-4 sm:p-6 min-h-[50vh]">
+            <div className="min-h-[55vh] rounded-2xl border border-[#dfe7f2] bg-white p-4 shadow-[0_2px_10px_rgba(16,36,71,.035)] sm:p-6">
               {settingsBoot ? (
                 <PageLoading label="Abrindo configurações…" full />
               ) : (
               <>
+                            {activeTab === 'Notificacoes' && (
+                <NotificationSettingsPanel />
+              )}
+
+              {activeTab === 'Seguranca' && (
+                <SecurityLimitsPanel />
+              )}
+
                             {activeTab === 'Conta' && (
                 <div className="space-y-6 max-w-xl">
               <section className="rounded-2xl border border-border/60 bg-card/70 backdrop-blur-md p-5 shadow-sm">
