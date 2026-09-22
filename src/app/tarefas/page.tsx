@@ -9,7 +9,7 @@ import { ProtocoloChip } from '@/components/ops/protocolo-chip';
 import { descreverPrazoForense } from '@/lib/calendario-tj';
 import { useAdmin } from '@/hooks/use-admin';
 
-import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
+import { defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 /**
