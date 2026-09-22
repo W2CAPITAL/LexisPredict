@@ -71,7 +71,7 @@ export function DataJudScannerPanel() {
   if (!allowed) {
     if (isMinimized || (status === 'idle' && manualStatus === 'idle')) return null;
     return (
-      <div className="fixed bottom-6 right-6 z-[200] w-[360px] rounded-2xl border-2 border-red-500/40 bg-card p-4 shadow-2xl space-y-2">
+      <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-[200] w-[calc(100vw-1.5rem)] max-w-[360px] rounded-2xl border-2 border-red-500/40 bg-card p-4 shadow-2xl space-y-2 md:bottom-6 md:right-6 md:w-[360px]">
         <div className="flex items-center gap-2 text-red-600">
           <Lock size={16} />
           <p className="text-[10px] font-black uppercase tracking-widest">Scanner indisponível</p>
@@ -94,7 +94,7 @@ export function DataJudScannerPanel() {
 
   if (isMinimized) {
     return (
-      <div className="fixed bottom-6 right-6 z-[200] animate-in slide-in-from-bottom-4">
+      <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-[200] animate-in slide-in-from-bottom-4 md:bottom-6 md:right-6">
         <Button onClick={toggleMinimize} className="h-14 w-14 rounded-full bg-black text-white shadow-2xl border-2 border-primary hover:scale-105 transition-transform">
           <div className="relative">
             <Zap className={cn("text-primary", (status === 'running' || manualStatus === 'running') && "animate-pulse")} />
@@ -115,7 +115,10 @@ export function DataJudScannerPanel() {
       <div className="bg-[linear-gradient(90deg,#082944,#061d35)] !text-white p-4 flex items-center justify-between border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", (status === 'running' || manualStatus === 'running') && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner da carteira · DataJud + DJEN</h3>
+          <div>
+            <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner da carteira · DataJud + DJEN</h3>
+            <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-[.12em] text-white/55">Local no dispositivo · Nuvem no worker Vercel</p>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
