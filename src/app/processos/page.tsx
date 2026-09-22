@@ -620,42 +620,23 @@ export default function ProcessosEmpresaPage() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden min-h-0">
       <Sidebar />
       <main className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
-        <header className="shrink-0 border-b border-border/60 bg-card p-3 sm:px-6 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
-              <ShieldCheck size={20} />
-            </div>
-            <div>
-              <h1 className="font-black text-sm sm:text-base tracking-tight uppercase">Processos da Empresa</h1>
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                Visão geral da carteira • atendimento conta para quem clicou Atender · dono (Criado por) não muda
-              </p>
-            </div>
+        <header className="flex shrink-0 flex-wrap items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
+          <div>
+            <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
+              <Briefcase size={14} /> Processos
+            </p>
+            <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Processos</h1>
+            <p className="mt-2 text-sm font-medium text-[#617693]">
+              Visão completa da carteira da empresa. Acompanhe, filtre e supervisione todos os processos em um só lugar.
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="h-8 px-3 rounded-xl font-black uppercase text-[8px] border-primary/40 text-primary">
-              <Users size={12} className="mr-1.5" /> {profile?.cargo}
-            </Badge>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors disabled:opacity-60"
-            >
-              <RefreshCcw size={14} className={cn(loading && "animate-spin text-primary")} /> Atualizar
-            </button>
-            <Link
-              href="/cases?new=1"
-              className="h-9 rounded-xl bg-black text-white hover:bg-primary hover:text-black px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"
-            >
-              <Plus size={14} /> Novo Processo
-            </Link>
-            <button
-              onClick={exportCsv}
-              className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"
-            >
-              <FileDown size={14} /> CSV
-            </button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+              <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Atualizar
+            </Button>
+            <Button asChild size="sm" className="h-10 rounded-xl bg-[#1f6fff] px-5 font-bold text-white hover:bg-[#145de0]">
+              <Link href="/cases?new=1"><Plus size={15} className="mr-2" /> Novo processo</Link>
+            </Button>
           </div>
         </header>
 
