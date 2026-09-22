@@ -123,6 +123,15 @@ export function PlanosEmpresaPanel() {
     []
   );
 
+  const irParaPlanos = () => {
+    const alvo = document.getElementById("lexis-plan-options");
+    alvo?.scrollIntoView({ behavior: "smooth", block: "start" });
+    toast({
+      title: "Escolha o novo plano",
+      description: "Selecione abaixo o plano desejado para registrar a alteração.",
+    });
+  };
+
   const onEscolher = async (id: PlanId) => {
     if (id === currentPlan || busy) return;
 
@@ -264,7 +273,7 @@ export function PlanosEmpresaPanel() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+      <div id="lexis-plan-options" className="scroll-mt-24 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
         {PLAN_IDS.map((id) => {
           const p = PLANOS_PRECOS[id];
           const meta = PLAN_STYLE[id];
@@ -376,7 +385,12 @@ export function PlanosEmpresaPanel() {
             <p className="font-black text-[#102447]">Precisa alterar seu plano?</p>
             <p className="mt-1 text-xs text-[#6d7f9b]">Solicite um upgrade ou downgrade. O plano atual segue ativo até a aprovação.</p>
           </div>
-          <Button variant="outline" className="h-10 rounded-xl border-[#1f6fff] px-4 text-[#1f6fff]">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 rounded-xl border-[#1f6fff] px-4 text-[#1f6fff]"
+            onClick={irParaPlanos}
+          >
             Solicitar alteração
           </Button>
         </div>
