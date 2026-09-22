@@ -143,7 +143,6 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Conta');
   const [settingsBoot, setSettingsBoot] = useState(true);
   const [settingsQuery, setSettingsQuery] = useState('');
-  const [chatNotifOn, setChatNotifOn] = useState(false);
   useEffect(() => {
     const id = window.setTimeout(() => setSettingsBoot(false), 180);
     try {
@@ -248,9 +247,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true);
-    try {
-      setChatNotifOn(localStorage.getItem('lexis_chat_notif') === 'granted');
-    } catch { /* */ }
     const savedIA = localStorage.getItem('lexisPredict_preferred_ia') || 'xai';
     setIaModel(savedIA === 'airforce' ? 'xai' : savedIA);
     setIsMasterUnlocked(localStorage.getItem('lexis_master_unlock') === 'true');
@@ -732,49 +728,8 @@ export default function SettingsPage() {
                     <p className="text-[11px] text-muted-foreground truncate mt-0.5">{profile?.email}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge variant="outline" className="text-[9px] rounded-md">{profile?.cargo || "perfil"}</Badge>
-                      {chatNotifOn ? (
-                        <Badge className="text-[9px] rounded-md bg-emerald-500/15 text-emerald-600 border-0">Notif. chat ON</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[9px] rounded-md text-muted-foreground">Notif. chat off</Badge>
-                      )}
                     </div>
                   </div>
-                </div>
-                {/* notificação chat */}
-                <div className="mt-4 rounded-xl border border-border/50 bg-background/50 p-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Bell size={16} className="text-primary shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold">Notificações do chat equipe</p>
-                      <p className="text-[10px] text-muted-foreground">Avisos de novas mensagens</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={chatNotifOn}
-                    onCheckedChange={async (on) => {
-                      if (on) {
-                        try {
-                          if ("Notification" in window) {
-                            const p = await Notification.requestPermission();
-                            if (p === "granted") {
-                              localStorage.setItem("lexis_chat_notif", "granted");
-                              setChatNotifOn(true);
-                              toast({ title: "Notificações ativadas" });
-                              return;
-                            }
-                          }
-                          toast({ title: "Permissão negada no navegador", variant: "destructive" });
-                          setChatNotifOn(false);
-                        } catch {
-                          setChatNotifOn(false);
-                        }
-                      } else {
-                        localStorage.setItem("lexis_chat_notif", "dismissed");
-                        setChatNotifOn(false);
-                        toast({ title: "Notificações desativadas no app" });
-                      }
-                    }}
-                  />
                 </div>
               </section>
 
