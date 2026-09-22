@@ -286,43 +286,27 @@ export default function Dashboard() {
     <div className="ops-ui admin-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
-        <header className="admin-page-header relative h-auto flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 sm:px-8 gap-3 shrink-0">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-3">
-              <LayoutDashboard size={20} className="text-foreground" />
-              <h1 className="admin-page-title text-base sm:text-xl text-foreground">{t.dashboard}</h1>
-            </div>
-            <p className="hidden sm:block text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Visão da carteira</p>
+        <header className="admin-page-header relative flex shrink-0 items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
+          <div>
+            <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
+              <LayoutDashboard size={14} /> Painel
+            </p>
+            <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">
+              Olá, {String(profile?.nome || 'Usuário').split(/\s+/)[0]}!
+            </h1>
+            <p className="mt-2 text-sm font-medium text-[#617693]">
+              Aqui está o panorama da sua operação jurídica hoje.
+            </p>
           </div>
-          <div className="flex items-center gap-3 sm:gap-4">
-            {(metrics.countNovoAndamento > 0 || metrics.countBA > 0) && (
-              <Badge
-                variant="destructive"
-                className="h-8 px-3 rounded-xl font-semibold text-[9px] sm:text-[10px] flex items-center gap-1.5 sm:gap-2 max-w-[min(100%,280px)]"
-                title="Processos com andamento novo após o último contato e/ou indício de busca e apreensão ainda sem tratamento"
-              >
-                <AlertCircle size={14} className="shrink-0" />
-                <span className="truncate">
-                  {metrics.countBA > 0 && metrics.countNovoAndamento > 0
-                    ? `${metrics.countNovoAndamento} novidade(s) · ${metrics.countBA} B.A.`
-                    : metrics.countBA > 0
-                      ? `${metrics.countBA} indício(s) de busca e apreensão`
-                      : `${metrics.countNovoAndamento} andamento(s) novo(s) sem atendimento`}
-                </span>
-              </Badge>
-            )}
-            <MetalButton preset="chromatic" strength={1} variant="outline" size="sm" asChild className={cn("h-10 px-4 sm:px-6 rounded-full text-[11px] font-black uppercase tracking-wider", ui.touch)}>
+          <div className="hidden items-center gap-3 lg:flex">
+            <Button variant="outline" size="sm" asChild className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
               <Link href="/report">
-                <FileDown size={16} className="mr-2 hidden sm:inline" /> Dossiê Operacional
+                <FileDown size={15} className="mr-2" /> Relatório
               </Link>
-            </MetalButton>
-            <MetalButton preset="silver" strength={1} variant="secondary" size="icon" onClick={loadData} className="h-10 w-10 rounded-full" aria-label="Atualizar" disabled={loading}><RefreshCcw size={18} className={loading ? "animate-spin text-primary" : ""} />
-            </MetalButton>
-            {lastSync && (
-              <span className="hidden md:flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 shrink-0" title={new Date(lastSync).toLocaleString('pt-BR')}>
-                <Clock size={10} /> {new Date(lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
+            </Button>
+            <Button variant="outline" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl border-[#dce5f1] bg-white" aria-label="Atualizar" disabled={loading}>
+              <RefreshCcw size={17} className={loading ? "animate-spin text-primary" : ""} />
+            </Button>
           </div>
         </header>
 
