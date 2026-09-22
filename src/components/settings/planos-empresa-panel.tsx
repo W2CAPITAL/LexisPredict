@@ -195,108 +195,76 @@ export function PlanosEmpresaPanel() {
 
   return (
     <section aria-label="Planos e assinatura" className="space-y-6">
-      <div className="relative overflow-hidden rounded-[26px] border bg-card shadow-sm">
-        <div className="absolute inset-x-0 top-0 h-44 bg-gradient-to-r from-primary/12 via-violet-500/8 to-cyan-500/8" />
-        <div className="relative p-5 sm:p-7">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-2xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border bg-background/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                  LexisPredict Commercial
-                </span>
+      <div className="overflow-hidden rounded-2xl border border-[#dfe7f2] bg-white shadow-[0_2px_10px_rgba(16,36,71,.035)]">
+        <div className="grid gap-0 xl:grid-cols-[1.35fr_.75fr_.75fr_.75fr]">
+          <div className="flex items-center gap-4 border-b border-[#e7edf5] p-5 xl:border-b-0 xl:border-r">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#eef5ff] text-[#1f6fff]">
+              <Crown className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#526986]">Seu plano atual</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h2 className="text-2xl font-black tracking-[-.03em] text-[#102447]">{PLAN_LABEL[currentPlan]}</h2>
                 <Badge variant="outline" className={cn("rounded-full px-3 py-1 text-[10px] font-bold", status.className)}>
                   {status.label}
                 </Badge>
               </div>
-
-              <h2 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">
-                Plano sob medida para a operação jurídica
-              </h2>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                Escolha apenas os módulos que a empresa precisa agora. O plano Máximo une operação judicial, CRM, cobrança e inteligência em um único ambiente.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <div className="rounded-xl border bg-background/70 px-3 py-2">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Plano atual</p>
-                  <p className="mt-0.5 text-sm font-black">{PLAN_LABEL[currentPlan]}</p>
-                </div>
-                <div className="rounded-xl border bg-background/70 px-3 py-2">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Validade</p>
-                  <p className="mt-0.5 text-sm font-black">
-                    {setupRequired ? "Aguardando empresa" : expiresLabel || "Sem prazo definido"}
-                  </p>
-                </div>
-                <div className="rounded-xl border bg-background/70 px-3 py-2">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Dias restantes</p>
-                  <p className="mt-0.5 text-sm font-black">
-                    {daysLeft === null ? "—" : Math.max(0, daysLeft)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="w-full max-w-sm rounded-2xl border bg-background/75 p-2 shadow-sm backdrop-blur xl:w-auto">
-              <div className="grid grid-cols-2 gap-1">
-                <button
-                  type="button"
-                  onClick={() => setCiclo("mensal")}
-                  className={cn(
-                    "min-h-11 rounded-xl px-4 text-sm font-bold transition",
-                    ciclo === "mensal"
-                      ? "bg-foreground text-background shadow-sm"
-                      : "text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  Mensal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCiclo("anual")}
-                  className={cn(
-                    "min-h-11 rounded-xl px-4 text-sm font-bold transition",
-                    ciclo === "anual"
-                      ? "bg-foreground text-background shadow-sm"
-                      : "text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  Anual
-                </button>
-              </div>
-              <div className="mt-2 flex items-center gap-2 rounded-xl bg-emerald-500/8 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
-                <Sparkles className="h-3.5 w-3.5 shrink-0" />
-                <span>Anual economiza até {formatBRL(maxSaving)}</span>
-              </div>
+              <p className="mt-1 text-sm text-[#6d7f9b]">{PLANOS_PRECOS[currentPlan].tagline}</p>
             </div>
           </div>
 
-          {setupRequired ? (
-            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 sm:flex-row sm:items-center">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10">
-                <Building2 className="h-5 w-5 text-sky-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold">Nenhuma empresa vinculada ainda</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  Isso não é bloqueio. Cadastre a primeira empresa ou conclua o vínculo do perfil para ativar um plano.
-                </p>
-              </div>
-              {serverError ? (
-                <span className="text-[10px] text-muted-foreground">{serverError}</span>
-              ) : null}
-            </div>
-          ) : null}
+          <div className="border-b border-[#e7edf5] p-5 xl:border-b-0 xl:border-r">
+            <p className="text-xs font-medium text-[#6d7f9b]">Próxima renovação</p>
+            <p className="mt-1 text-lg font-black text-[#102447]">{expiresLabel || "Sem data"}</p>
+            <p className="mt-1 text-xs text-[#6d7f9b]">{daysLeft === null ? "Validade não definida" : `Em ${Math.max(0, daysLeft)} dias`}</p>
+          </div>
+
+          <div className="border-b border-[#e7edf5] p-5 xl:border-b-0 xl:border-r">
+            <p className="text-xs font-medium text-[#6d7f9b]">Status de cobrança</p>
+            <p className="mt-1 text-lg font-black text-[#102447]">
+              {billingStatus === "active" ? "Em dia" : status.label}
+            </p>
+            <p className="mt-1 text-xs text-[#6d7f9b]">Controle comercial do tenant</p>
+          </div>
+
+          <div className="p-5">
+            <p className="text-xs font-medium text-[#6d7f9b]">Alteração de plano</p>
+            <p className="mt-1 text-lg font-black text-emerald-600">Disponível</p>
+            <p className="mt-1 text-xs text-[#6d7f9b]">Solicitação auditada e aprovada pelo comercial.</p>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-[22px] border bg-muted/20 p-4 sm:p-5">
-        <p className="text-sm font-bold">Ativação comercial controlada</p>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Alterações de plano são registradas como solicitação. O plano atual continua funcionando até a aprovação do pagamento ou liberação pelo Superadmin.
-        </p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h3 className="text-2xl font-black tracking-[-.03em] text-[#102447]">Escolha o plano ideal para sua equipe</h3>
+          <p className="mt-1 text-sm text-[#6d7f9b]">Mesmo tenant, mais possibilidades. Os módulos liberados mudam conforme o plano.</p>
+        </div>
+        <div className="flex rounded-xl bg-[#edf2f8] p-1">
+          <button
+            type="button"
+            onClick={() => setCiclo("mensal")}
+            className={cn(
+              "min-w-[120px] rounded-lg px-5 py-2 text-sm font-bold transition",
+              ciclo === "mensal" ? "bg-white text-[#1f6fff] shadow-sm" : "text-[#36516f]"
+            )}
+          >
+            Mensal
+          </button>
+          <button
+            type="button"
+            onClick={() => setCiclo("anual")}
+            className={cn(
+              "min-w-[120px] rounded-lg px-5 py-2 text-sm font-bold transition",
+              ciclo === "anual" ? "bg-white text-[#1f6fff] shadow-sm" : "text-[#36516f]"
+            )}
+          >
+            Anual <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] text-emerald-700">2 meses grátis</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
         {PLAN_IDS.map((id) => {
           const p = PLANOS_PRECOS[id];
           const meta = PLAN_STYLE[id];
@@ -304,207 +272,121 @@ export function PlanosEmpresaPanel() {
           const atual = id === currentPlan;
           const tipo = acao(id);
           const valor = ciclo === "mensal" ? p.valorMensal : p.valorAnual;
-          const eq = ciclo === "anual" ? mensalDoAnual(id) : null;
+          const eq = mensalDoAnual(id);
           const eco = economiaAnual(id);
-          const discountPct = Math.round((eco / (p.valorMensal * 12)) * 100);
 
           return (
             <article
               key={id}
-              data-plan={id}
               className={cn(
-                "group relative flex min-w-0 flex-col overflow-hidden rounded-[24px] border bg-card shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl",
-                atual ? "border-primary ring-1 ring-primary/25" : "border-border/70"
+                "relative flex min-h-[430px] flex-col rounded-2xl border bg-white p-5 shadow-[0_2px_10px_rgba(16,36,71,.035)]",
+                atual ? "border-[#1f6fff] ring-1 ring-[#1f6fff]/20" : "border-[#dfe7f2]"
               )}
             >
-              <div className={cn("absolute inset-x-0 top-0 h-36 bg-gradient-to-br", meta.accent)} />
-              <div className="relative flex h-full flex-col p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", meta.iconWrap)}>
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    {p.selo ? (
-                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-primary">
-                        {p.selo}
-                      </span>
-                    ) : null}
-                    {atual ? (
-                      <span className="rounded-full border bg-background/80 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider">
-                        Atual
-                      </span>
-                    ) : null}
-                  </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl", meta.iconWrap)}>
+                  <Icon className="h-5 w-5" />
                 </div>
-
-                <div className="mt-5">
-                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">{meta.label}</p>
-                  <h3 className="mt-1 text-xl font-black tracking-tight">{PLAN_LABEL[id]}</h3>
-                  <p className="mt-2 min-h-[42px] text-sm leading-relaxed text-muted-foreground">{p.tagline}</p>
-                </div>
-
-                <div className="mt-5 border-y py-4">
-                  <div className="flex items-end gap-1">
-                    <span className="text-3xl font-black tracking-tight tabular-nums">{formatBRL(valor)}</span>
-                    <span className="pb-1 text-[10px] font-medium text-muted-foreground">
-                      /{ciclo === "mensal" ? "mês" : "ano"}
-                    </span>
-                  </div>
-                  {ciclo === "anual" && eq !== null ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{formatBRL(eq)}/mês equivalente</span>
-                      <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black text-emerald-700 dark:text-emerald-300">
-                        -{discountPct}%
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Anual: {formatBRL(p.valorAnual)} · economize {formatBRL(eco)}
-                    </p>
-                  )}
-                </div>
-
-                <ul className="mt-5 flex-1 space-y-2.5">
-                  {p.beneficios.slice(0, 6).map((b) => (
-                    <li key={b} className="flex gap-2 text-sm leading-snug">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                {p.naoInclui?.length ? (
-                  <div className="mt-5 rounded-xl bg-muted/40 p-3">
-                    <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Fora deste plano</p>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{p.naoInclui.join(" · ")}</p>
-                  </div>
-                ) : (
-                  <div className="mt-5 rounded-xl bg-violet-500/8 p-3">
-                    <div className="flex items-center gap-2 text-violet-700 dark:text-violet-300">
-                      <Crown className="h-4 w-4" />
-                      <p className="text-xs font-bold">Todos os módulos comerciais inclusos</p>
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  disabled={atual || !!busy || !canChange}
-                  onClick={() => void onEscolher(id)}
-                  className={cn(
-                    "mt-5 flex min-h-11 w-full items-center justify-center rounded-xl px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-55",
-                    atual
-                      ? "border bg-muted text-muted-foreground"
-                      : id === "maximo"
-                        ? "bg-violet-600 text-white hover:bg-violet-700"
-                        : "bg-foreground text-background hover:opacity-90"
-                  )}
-                >
-                  {busy === id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : atual ? (
-                    "Plano atual"
-                  ) : (
-                    <>
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                      {tipo === "upgrade"
-                        ? "Solicitar upgrade"
-                        : tipo === "downgrade"
-                          ? "Solicitar downgrade"
-                          : "Solicitar alteração"}
-                    </>
-                  )}
-                </button>
+                {atual ? (
+                  <span className="rounded-full bg-[#eaf2ff] px-3 py-1 text-[9px] font-black uppercase tracking-wider text-[#1f6fff]">
+                    Plano atual
+                  </span>
+                ) : p.selo ? (
+                  <span className="rounded-full bg-[#eef5ff] px-3 py-1 text-[9px] font-black uppercase tracking-wider text-[#1f6fff]">{p.selo}</span>
+                ) : null}
               </div>
+
+              <h4 className="mt-4 text-xl font-black text-[#102447]">{PLAN_LABEL[id]}</h4>
+              <p className="mt-1 min-h-[42px] text-sm leading-relaxed text-[#607590]">{p.tagline}</p>
+
+              <div className="mt-5">
+                <div className="flex items-end gap-1">
+                  <span className="text-[30px] font-black tracking-[-.04em] text-[#102447]">{formatBRL(valor)}</span>
+                  <span className="pb-1 text-xs text-[#6d7f9b]">/{ciclo === "mensal" ? "mês" : "ano"}</span>
+                </div>
+                <p className="mt-1 text-xs text-[#6d7f9b]">
+                  Anual: {formatBRL(p.valorAnual)} · {formatBRL(eq)}/mês equivalente
+                </p>
+                <p className="mt-1 text-xs font-bold text-emerald-600">Economia anual de {formatBRL(eco)}</p>
+              </div>
+
+              <div className="my-4 h-px bg-[#e8eef6]" />
+
+              <ul className="flex-1 space-y-2.5">
+                {p.beneficios.slice(0, 5).map((b) => (
+                  <li key={b} className="flex gap-2 text-sm leading-snug text-[#27486f]">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                type="button"
+                disabled={atual || !!busy || !canChange}
+                onClick={() => void onEscolher(id)}
+                className={cn(
+                  "mt-5 flex h-11 w-full items-center justify-center rounded-xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed",
+                  atual
+                    ? "border-[#a9c6ff] bg-[#dce9ff] text-[#165bce]"
+                    : "border-[#1f6fff] bg-white text-[#1f6fff] hover:bg-[#eef5ff]",
+                  !canChange && "opacity-55"
+                )}
+              >
+                {busy === id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : atual ? (
+                  <><Check className="mr-2 h-4 w-4" /> Plano atual</>
+                ) : tipo === "upgrade" ? (
+                  "Selecionar plano"
+                ) : tipo === "downgrade" ? (
+                  "Solicitar downgrade"
+                ) : (
+                  "Solicitar alteração"
+                )}
+              </button>
             </article>
           );
         })}
       </div>
 
-      <div className="overflow-hidden rounded-[24px] border bg-card shadow-sm">
-        <div className="flex flex-col gap-2 border-b p-5 sm:flex-row sm:items-end sm:justify-between sm:p-6">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Comparativo</p>
-            <h3 className="mt-1 text-lg font-black tracking-tight">O que cada plano libera</h3>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="flex items-center gap-4 rounded-2xl border border-[#dfe7f2] bg-white p-5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+            <MessageCircle className="h-6 w-6" />
           </div>
-          <p className="max-w-lg text-xs leading-relaxed text-muted-foreground">
-            A diferença entre os planos é modular. O Máximo combina os pacotes Operacional e Financeiro sem duplicar a base Essencial.
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="font-black text-[#102447]">Falar com o time comercial</p>
+            <p className="mt-1 text-xs text-[#6d7f9b]">Tire dúvidas, receba uma proposta personalizada ou solicite um teste.</p>
+          </div>
+          <Button
+            type="button"
+            className="h-10 rounded-xl bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+            onClick={() => window.open("https://wa.me/5513991199349", "_blank", "noopener,noreferrer")}
+          >
+            <MessageCircle className="mr-2 h-4 w-4" /> Conversar no WhatsApp
+          </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left">
-            <thead>
-              <tr className="border-b bg-muted/20">
-                <th className="px-5 py-4 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Recurso</th>
-                {PLAN_IDS.map((id) => (
-                  <th key={id} className="px-4 py-4 text-center text-[10px] font-black uppercase tracking-wider">
-                    {PLAN_LABEL[id]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARISON.map((row) => (
-                <tr key={row.label} className="border-b last:border-0">
-                  <td className="px-5 py-4 text-sm font-medium">{row.label}</td>
-                  {PLAN_IDS.map((id) => {
-                    const enabled = row[id];
-                    return (
-                      <td key={id} className="px-4 py-4 text-center">
-                        {enabled ? (
-                          <span className="mx-auto flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
-                            <Check className="h-4 w-4" />
-                          </span>
-                        ) : (
-                          <span className="mx-auto flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground/60">
-                            <Minus className="h-4 w-4" />
-                          </span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex items-center gap-4 rounded-2xl border border-[#dfe7f2] bg-white p-5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef5ff] text-[#1f6fff]">
+            <ArrowRight className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-black text-[#102447]">Precisa alterar seu plano?</p>
+            <p className="mt-1 text-xs text-[#6d7f9b]">Solicite um upgrade ou downgrade. O plano atual segue ativo até a aprovação.</p>
+          </div>
+          <Button variant="outline" className="h-10 rounded-xl border-[#1f6fff] px-4 text-[#1f6fff]">
+            Solicitar alteração
+          </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary" />
-            <p className="text-sm font-bold">Sem falso bloqueio</p>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            Empresa inexistente aparece como configuração inicial, não como inadimplência.
-          </p>
+      {setupRequired || serverError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+          {serverError || "Conclua o cadastro da empresa para ativar um plano."}
         </div>
-        <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-primary" />
-            <p className="text-sm font-bold">Ativação controlada</p>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            Upgrade ou downgrade cria uma solicitação pendente. O plano só muda após aprovação comercial ou ação do Superadmin.
-          </p>
-        </div>
-        <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <p className="text-sm font-bold">Upgrade sem migração</p>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            O tenant permanece o mesmo; apenas os módulos liberados mudam conforme o plano.
-          </p>
-        </div>
-      </div>
-
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        {profile?.email ? "Conta: " + profile.email + ". " : ""}
-        Alterações de assinatura são auditadas e dependem de aprovação comercial. O tenant e os dados permanecem os mesmos.
-      </p>
+      ) : null}
     </section>
   );
 }
