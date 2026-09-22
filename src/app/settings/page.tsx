@@ -143,12 +143,15 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Conta');
   const [settingsBoot, setSettingsBoot] = useState(true);
   const [settingsQuery, setSettingsQuery] = useState('');
+  const { profile } = useAuth();
+  const { billingStatus } = usePlano();
 
   useEffect(() => {
     const email = String(profile?.email || '').trim().toLowerCase();
     const current = settingsQuery.trim().toLowerCase();
     if (email && current === email) setSettingsQuery('');
   }, [profile?.email, settingsQuery]);
+
   useEffect(() => {
     const id = window.setTimeout(() => setSettingsBoot(false), 180);
     try {
@@ -159,8 +162,6 @@ export default function SettingsPage() {
     }
     return () => window.clearTimeout(id);
   }, []);
-  const { profile } = useAuth();
-  const { billingStatus } = usePlano();
   
   const [advogados, setAdvogados] = useState<any[]>([]);
   const [loadingBanca, setLoadingBanca] = useState(false);
