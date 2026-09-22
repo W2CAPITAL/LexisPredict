@@ -86,6 +86,7 @@ interface DataJudScanState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let cloudPollBusy = false;
 const CLOUD_POLL_MS = 15000; // espera worker terminar DataJud antes do próximo tiro
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
@@ -660,12 +661,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   /**
-   * Nuvem contínua SEM Cron:
-   * a cada poll dispara worker (micro-lote) + lê métricas.
-   * NÃO para quando pending===0 — continua reprocessando os mais antigos (rotação 24h).
+   * Nuvem sob demanda SEM Cron:
+   * cada poll espera um micro-lote terminar e para quando a sessão chega a N/N.
    */
   pollStatus: async () => {
-    if (get().status !== 'running') return;
+    if (get().status !== 'running' || cloudPollBusy) return;
+    cloudPollBusy = true;
 
     try {
       const st = get();
@@ -739,6 +740,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         type: 'error',
         engine: 'Nuvem',
       });
+    } finally {
+      cloudPollBusy = false;
     }
   },
 }));
