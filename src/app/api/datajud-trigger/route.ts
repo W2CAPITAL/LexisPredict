@@ -6,6 +6,7 @@ import { getUserContext } from '@/lib/server-db';
 import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
@@ -14,10 +15,12 @@ export async function POST(request: Request) {
 
     let mode = 'both';
     let scope = 'full';
+    let since: string | null = null;
     try {
       const body = await request.clone().json().catch(() => ({}));
       if (body?.mode && ['datajud', 'djen', 'both'].includes(body.mode)) mode = body.mode;
       if (body?.scope && ['full', 'cumprimento'].includes(body.scope)) scope = body.scope;
+      if (body?.since) since = String(body.since);
     } catch {
       /* ignore */
     }
@@ -29,20 +32,37 @@ export async function POST(request: Request) {
       ? `https://${process.env.VERCEL_URL}`
       : `${protocol}://${host}`;
 
-    // Fire-and-forget worker
-    fetch(
-      `${baseUrl}/api/datajud-worker?empresa_id=${encodeURIComponent(empresa_id)}&mode=${encodeURIComponent(mode)}&scope=${encodeURIComponent(scope)}`,
+    const params = new URLSearchParams({
+      empresa_id: String(empresa_id),
+      mode,
+      scope,
+    });
+    if (since) params.set('since', since);
+
+    // Sem Cron e sem fire-and-forget: o clique do operador mantém este lote vivo
+    // até o worker responder. A UI dispara o próximo lote apenas depois.
+    const workerResponse = await fetch(
+      `${baseUrl}/api/datajud-worker?${params.toString()}`,
       {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${process.env.DATAJUD_WORKER_SECRET}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ mode, scope }),
+        body: JSON.stringify({ mode, scope, since }),
+        cache: 'no-store',
       }
-    ).catch(() => {});
+    );
 
-    return NextResponse.json({ started: true, mode, scope });
+    const payload = await workerResponse.json().catch(() => ({}));
+    if (!workerResponse.ok) {
+      return NextResponse.json(
+        { started: false, mode, scope, since, worker: payload },
+        { status: workerResponse.status }
+      );
+    }
+
+    return NextResponse.json({ started: true, mode, scope, since, worker: payload });
   } catch (error: any) {
     return NextResponse.json({ started: false, error: error.message }, { status: 500 });
   }
