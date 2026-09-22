@@ -2,10 +2,11 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Building2, ChevronDown, Crown, Search } from "lucide-react";
+import { Building2, ChevronDown, Crown, Search } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { usePlano } from "@/hooks/use-plano";
 import { PLAN_LABEL } from "@/lib/planos-pacotes";
+import { NotificationCenter } from "@/components/system/notification-center";
 
 export function CommercialTopbar() {
   const router = useRouter();
@@ -66,14 +67,7 @@ export function CommercialTopbar() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[#dfe7f2] bg-white text-[#18396c]"
-          aria-label="Notificações"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
-        </button>
+        <NotificationCenter />
 
         <div className="flex min-w-[170px] items-center gap-3 pl-2">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1f6fff] text-sm font-black text-white">
