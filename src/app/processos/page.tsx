@@ -34,6 +34,8 @@ import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSe
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { fetchProcessosEmpresaKpisAction } from "@/app/actions/processos-kpis-action";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
+import { DataJudScannerPanel } from "@/components/scanner/datajud-scanner-panel";
+import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { isEmpresaW1Principal } from "@/lib/w1-empresa";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase, formatDateToISO } from "@/lib/case-logic";
@@ -146,6 +148,11 @@ export default function ProcessosEmpresaPage() {
   /** Só o botão "Rodar empresa" (lote empresa) exige Supervisão/Superadmin. Resto da página é livre. */
   const canRodarEmpresa = canRodarEmpresaScan(profile as any);
   const canAssignOwner = canAssignOwnerRule(profile as any);
+  const openScanner = useDataJudScanStore((s) => s.openScanner);
+  const scannerStatus = useDataJudScanStore((s) => s.status);
+  const scannerManualStatus = useDataJudScanStore((s) => s.manualStatus);
+  const scannerDone = useDataJudScanStore((s) => s.done);
+  const scannerTotal = useDataJudScanStore((s) => s.total);
 
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [searchHits, setSearchHits] = useState<LegalCase[] | null>(null);
@@ -630,7 +637,26 @@ export default function ProcessosEmpresaPage() {
               Visão completa da carteira da empresa. Acompanhe, filtre e supervisione todos os processos em um só lugar.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {canRodarEmpresa ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={openScanner}
+                className="h-10 rounded-xl border-[#8db6ff] bg-[#eef5ff] px-4 font-bold text-[#145de0] hover:bg-[#dfecff]"
+              >
+                <Activity size={15} className={cn(
+                  "mr-2",
+                  (scannerStatus === "running" || scannerManualStatus === "running") && "animate-pulse"
+                )} />
+                {scannerStatus === "running"
+                  ? `Scanner nuvem ${scannerDone}/${scannerTotal || "…"}`
+                  : scannerManualStatus === "running"
+                    ? "Scanner local em execução"
+                    : "Scanner DataJud + DJEN"}
+              </Button>
+            ) : null}
             <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
               <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Atualizar
             </Button>
@@ -639,6 +665,8 @@ export default function ProcessosEmpresaPage() {
             </Button>
           </div>
         </header>
+
+        <DataJudScannerPanel />
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-4 sm:p-8 space-y-8 max-w-[1500px] mx-auto w-full">
