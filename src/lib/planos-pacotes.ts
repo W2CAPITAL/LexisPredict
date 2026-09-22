@@ -42,6 +42,7 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/notes",
     "/onboarding",
     "/settings",
+    "/planos",
     "/login",
     "/signup",
     "/team",
@@ -95,6 +96,7 @@ const ALWAYS = new Set([
   "/login",
   "/signup",
   "/settings",
+  "/planos",
   "/onboarding",
   "/termos",
 ]);
