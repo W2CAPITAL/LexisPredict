@@ -1109,62 +1109,32 @@ function CasesContent() {
             <OpsOrbitalStrip nodes={opsNodes} className="mb-4" />
           </div>
 
-        <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between p-4 sm:px-10 shrink-0 z-40">
-          <div className="flex items-center gap-4">
-             <Briefcase size={20} className="text-primary" />
-             <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Carteira do Gabinete</h1>
+        <header className="flex shrink-0 flex-col gap-4 px-5 pb-4 pt-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
+              <Briefcase size={14} /> Processos
+            </p>
+            <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Meus Processos</h1>
+            <p className="mt-2 text-sm font-medium text-[#617693]">Acompanhe e gerencie sua carteira de processos.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {canExport ? (
-              <>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleExportXlsx}
-                  disabled={exporting}
-                  className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
-                  Exportar XLSX
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportCSV}
-                  disabled={exporting}
-                  className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary"
-                >
-                  {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
-                  CSV
-                </Button>
-              </>
+              <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={exporting} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+                {exporting ? <Loader2 size={15} className="mr-2 animate-spin" /> : <FileDown size={15} className="mr-2" />}
+                Exportar
+              </Button>
             ) : null}
             {canUseAllOperational ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRecalibratePrazos}
-                disabled={isRecalibrating || loading}
-                className="h-10 px-3 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-border/50 hover:bg-secondary"
-                title="Recalcular Vencido / É Hoje / Atenção a partir do próximo prazo"
-              >
-                {isRecalibrating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CalendarDays className="w-4 h-4 mr-1" />}
-                Recalibrar Prazos
+              <Button variant="outline" size="sm" onClick={handleRecalibratePrazos} disabled={isRecalibrating || loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+                {isRecalibrating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-2 h-4 w-4" />}
+                Recalibrar prazos
               </Button>
             ) : null}
             {canCreate && (
-              <Button
-                size="sm"
-                onClick={handleNewCase}
-                className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black !text-white hover:bg-primary hover:!text-black"
-              >
-                <Plus size={16} className="mr-2" />
-                Novo Processo
+              <Button size="sm" onClick={handleNewCase} className="h-10 rounded-xl bg-[#1f6fff] px-5 font-bold text-white hover:bg-[#145de0]">
+                <Plus size={16} className="mr-2" /> Novo processo
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={loadData} disabled={loading} className="h-10 w-10 rounded-xl hover:bg-secondary" title="Recarregar">
-              <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} />
-            </Button>
           </div>
         </header>
 
