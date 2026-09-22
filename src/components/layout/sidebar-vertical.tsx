@@ -126,6 +126,17 @@ export function SidebarVertical() {
   const active = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
 
+  const displayName = String(
+    (profile as any)?.nome ||
+      (profile as any)?.name ||
+      (profile as any)?.full_name ||
+      (profile as any)?.email ||
+      "Operação"
+  );
+  const firstName = displayName.trim().split(/\\s+/)[0] || "Operação";
+  const mobileSection =
+    mainItems.find((item) => active(item.href))?.label || "Operação jurídica";
+
   const SidebarBody = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="flex h-full flex-col bg-[linear-gradient(180deg,#061d35_0%,#082944_55%,#0a3554_100%)] text-white">
       <div className="flex h-[82px] shrink-0 items-center border-b border-white/10 px-5">
@@ -223,22 +234,66 @@ export function SidebarVertical() {
 
       <CommercialTopbar />
 
-      <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b border-[#dfe7f2] bg-white px-3 md:hidden">
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild>
-            <button className="flex h-10 w-10 items-center justify-center rounded-lg text-[#102447] hover:bg-[#eef4fb]">
-              <Menu className="h-5 w-5" />
-            </button>
-          </SheetTrigger>
-          <SheetContent side="left" className="z-[100] w-[280px] border-0 p-0">
-            <SheetTitle className="sr-only">Navegação</SheetTitle>
-            <SheetDescription className="sr-only">Menu do LexisPredict</SheetDescription>
-            <SidebarBody mobile />
-          </SheetContent>
-        </Sheet>
-        <span className="ml-2 text-sm font-black text-[#102447]">LexisPredict</span>
-        <Bell className="ml-auto h-5 w-5 text-[#18396c]" />
+      <div
+        data-lexis-mobile-topbar
+        className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b border-white/10 bg-[linear-gradient(135deg,#061d35_0%,#082944_55%,#0b3b67_100%)] px-3 text-white shadow-[0_10px_28px_rgba(4,22,41,.24)] md:hidden"
+      >
+        <Link href="/" prefetch={false} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#2d7fff]/70 bg-[#07182d] shadow-[0_0_18px_rgba(31,111,255,.28)]">
+          <img src="/logo.png" alt="LexisPredict" className="h-6 w-6 object-contain" />
+        </Link>
+        <div className="ml-2 min-w-0 flex-1">
+          <p className="truncate text-[13px] font-black tracking-tight">Olá, {firstName}</p>
+          <p className="truncate text-[9px] font-semibold uppercase tracking-[.14em] text-[#9fc2e4]">{mobileSection}</p>
+        </div>
+        <Link
+          href="/settings"
+          prefetch={false}
+          aria-label="Configurações e notificações"
+          className="relative mr-1 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[.06] text-[#d8eaff]"
+        >
+          <Bell className="h-[17px] w-[17px]" />
+          <span className="absolute right-2 top-1.5 h-1.5 w-1.5 rounded-full bg-[#ff4d4f] ring-2 ring-[#082944]" />
+        </Link>
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Abrir menu"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1769ff] text-white shadow-[0_8px_22px_rgba(23,105,255,.32)]"
+        >
+          <Menu className="h-[18px] w-[18px]" />
+        </button>
       </div>
+
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="z-[100] w-[280px] border-0 p-0">
+          <SheetTitle className="sr-only">Navegação</SheetTitle>
+          <SheetDescription className="sr-only">Menu do LexisPredict</SheetDescription>
+          <SidebarBody mobile />
+        </SheetContent>
+      </Sheet>
+
+      <nav
+        data-lexis-mobile-bottom-nav
+        className="fixed inset-x-0 bottom-0 z-40 grid h-[72px] grid-cols-4 border-t border-[#dfe7f2] bg-white/95 px-2 pt-1.5 shadow-[0_-10px_30px_rgba(14,42,78,.10)] backdrop-blur-xl md:hidden"
+        aria-label="Navegação principal móvel"
+      >
+        <Link href="/" prefetch={false} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold", active("/") ? "text-[#1769ff]" : "text-[#6f8098]")}>
+          <LayoutDashboard className={cn("h-5 w-5", active("/") && "fill-[#1769ff]/10")} />
+          <span>Início</span>
+        </Link>
+        <Link href="/cases" prefetch={false} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold", active("/cases") ? "text-[#1769ff]" : "text-[#6f8098]")}>
+          <Briefcase className="h-5 w-5" />
+          <span>Processos</span>
+        </Link>
+        <Link href="/tarefas" prefetch={false} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold", active("/tarefas") ? "text-[#1769ff]" : "text-[#6f8098]")}>
+          <ListTodo className="h-5 w-5" />
+          <span>Tarefas</span>
+        </Link>
+        <button type="button" onClick={() => setMobileOpen(true)} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold text-[#6f8098]">
+          <MoreHorizontal className="h-5 w-5" />
+          <span>Mais</span>
+        </button>
+      </nav>
 
       <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
         <SheetContent side="left" className="z-[110] w-[360px] border-r border-[#dfe7f2] bg-white p-0">
