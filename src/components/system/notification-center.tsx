@@ -25,39 +25,12 @@ import {
   getNotificationBootstrapAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
-  type NotificationPreferences,
 } from "@/app/actions/notification-actions";
-
-export type LexisNotification = {
-  id: string;
-  tipo: string;
-  prioridade: string;
-  titulo: string | null;
-  corpo: string | null;
-  link: string | null;
-  lida: boolean | null;
-  read_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  source?: string | null;
-  meta?: Record<string, unknown> | null;
-  processo_id?: number | null;
-};
-
-const DEFAULT_PREFS: NotificationPreferences = {
-  in_app_enabled: true,
-  browser_enabled: false,
-  prazos: true,
-  djen: true,
-  datajud: true,
-  tarefas: true,
-  chat: true,
-  sistema: true,
-  sound_enabled: false,
-  quiet_hours_enabled: false,
-  quiet_hours_start: null,
-  quiet_hours_end: null,
-};
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type LexisNotification,
+  type NotificationPreferences,
+} from "@/lib/notifications";
 
 function iconFor(tipo: string, prioridade: string) {
   if (prioridade === "critica") return <AlertTriangle className="h-4 w-4" />;
@@ -120,7 +93,7 @@ export function NotificationCenter() {
   const router = useRouter();
   const { profile } = useAuth();
   const [items, setItems] = useState<LexisNotification[]>([]);
-  const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFS);
+  const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const prefRef = useRef(prefs);
@@ -135,7 +108,7 @@ export function NotificationCenter() {
       const res = await getNotificationBootstrapAction(30);
       if (res.ok) {
         setItems((res.notifications || []) as LexisNotification[]);
-        setPrefs(res.preferences || DEFAULT_PREFS);
+        setPrefs(res.preferences || DEFAULT_NOTIFICATION_PREFERENCES);
       }
     } finally {
       setLoading(false);
