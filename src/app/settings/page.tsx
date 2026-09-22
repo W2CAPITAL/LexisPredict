@@ -143,6 +143,12 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Conta');
   const [settingsBoot, setSettingsBoot] = useState(true);
   const [settingsQuery, setSettingsQuery] = useState('');
+
+  useEffect(() => {
+    const email = String(profile?.email || '').trim().toLowerCase();
+    const current = settingsQuery.trim().toLowerCase();
+    if (email && current === email) setSettingsQuery('');
+  }, [profile?.email, settingsQuery]);
   useEffect(() => {
     const id = window.setTimeout(() => setSettingsBoot(false), 180);
     try {
@@ -627,10 +633,24 @@ export default function SettingsPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
+                  type="search"
+                  name="lexispredict-settings-filter"
                   value={settingsQuery}
                   onChange={(e) => setSettingsQuery(e.target.value)}
+                  onFocus={(e) => {
+                    const email = String(profile?.email || '').trim().toLowerCase();
+                    if (email && e.currentTarget.value.trim().toLowerCase() === email) {
+                      e.currentTarget.value = '';
+                      setSettingsQuery('');
+                    }
+                  }}
                   aria-label="Buscar configuração"
                   placeholder="Buscar configuração"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  data-1p-ignore="true"
+                  data-lpignore="true"
                   className="pl-9 h-11 rounded-xl bg-background/80 border-border/60"
                 />
               </div>
