@@ -788,26 +788,21 @@ const handleSaveAttendance = async () => {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
-        <header className="h-auto border-b border-border/50 bg-card flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 sm:px-6 gap-3 shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-black text-white rounded-lg shadow-lg"><CheckCircle size={20} className="text-primary" /></div>
-            <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Fila de atendimento</h1>
-            <span className="ml-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground tabular-nums" title={kpiCarteira.semanaLabel}>
-              Atendidos sem.: {kpiCarteira.atendidosSemana}
-              <span className="ml-2">Réplica {opsKpis.replicaPendente}</span>
-              <span className="ml-2">Silêncio {opsKpis.silencio45}</span>
-              <span className="ml-2 text-[9px] font-bold">J/K próximo caso</span>
-            </span>
+        <header className="flex shrink-0 flex-col gap-4 px-5 pb-4 pt-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
+              <CheckCircle size={14} /> Tarefas
+            </p>
+            <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Tarefas</h1>
+            <p className="mt-2 text-sm font-medium text-[#617693]">Organize e acompanhe a execução das atividades da sua equipe.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="h-9 px-4 border-none bg-primary/5 text-primary font-black uppercase text-[10px]">Audit Híbrida Ativa</Badge>
-            <Button asChild size="sm" className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black !text-white hover:bg-primary hover:!text-black">
-              <Link href="/cases?new=1">
-                <Plus size={16} className="mr-2 inline" />
-                Novo Processo
-              </Link>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+              <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Recarregar carteira
             </Button>
-            <Button variant="ghost" size="icon" onClick={loadData} disabled={loading} className="h-10 w-10 rounded-xl hover:bg-secondary" title="Recarregar"><RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} /></Button>
+            <Button asChild size="sm" className="h-10 rounded-xl bg-[#1f6fff] px-5 font-bold text-white hover:bg-[#145de0]">
+              <Link href="/cases?new=1"><Plus size={15} className="mr-2" /> Nova tarefa</Link>
+            </Button>
           </div>
         </header>
 
