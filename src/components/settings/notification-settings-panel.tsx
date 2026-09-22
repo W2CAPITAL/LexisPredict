@@ -19,11 +19,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
   getNotificationBootstrapAction,
   saveNotificationPreferencesAction,
-  type NotificationPreferences,
 } from "@/app/actions/notification-actions";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences,
+} from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
 type ToggleKey = "prazos" | "djen" | "datajud" | "tarefas" | "chat" | "sistema";
