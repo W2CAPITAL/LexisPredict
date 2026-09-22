@@ -50,13 +50,14 @@ type NavItem = {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   supervisor?: boolean;
+  company?: boolean;
   superadmin?: boolean;
 };
 
 const core: NavItem[] = [
   { label: "Painel", href: "/", icon: LayoutDashboard },
   { label: "Meus Processos", href: "/cases", icon: Briefcase },
-  { label: "Processos", href: "/processos", icon: FolderOpen, supervisor: true },
+  { label: "Processos", href: "/processos", icon: FolderOpen, company: true },
   { label: "Tarefas", href: "/tarefas", icon: ListTodo },
   { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, supervisor: true },
   { label: "CRM", href: "/crm", icon: Users },
@@ -87,7 +88,7 @@ const extras: NavItem[] = [
 export function SidebarVertical() {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
-  const { role, isSupervisor, isSuperAdmin } = useAdmin();
+  const { role, isSupervisor, isSuperAdmin, canSeeCompany } = useAdmin();
   const { plan } = usePlano();
   const openScanner = useDataJudScanStore((state) => state.openScanner);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -97,6 +98,7 @@ export function SidebarVertical() {
   const allowed = (item: NavItem) => {
     if (item.superadmin && !isSuperAdmin) return false;
     if (item.supervisor && !isSupervisor) return false;
+    if (item.company && !canSeeCompany) return false;
     if (role === "Operador" && !operatorRouteAllowed(item.href)) return false;
     return true;
   };
@@ -111,7 +113,7 @@ export function SidebarVertical() {
         })),
         isSuperAdmin ? "maximo" : plan,
       ),
-    [role, isSupervisor, isSuperAdmin, plan],
+    [role, isSupervisor, isSuperAdmin, canSeeCompany, plan],
   );
 
   const extraItems = useMemo(() => {
