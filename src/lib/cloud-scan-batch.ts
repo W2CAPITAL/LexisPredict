@@ -6,7 +6,7 @@ import { auditCaseCoreSystem } from '@/app/actions/case-actions';
 export type CloudScanMode = 'datajud' | 'djen' | 'both';
 export type CloudScanScope = 'full' | 'cumprimento';
 
-const BATCH_SIZE = 6;
+// Processa vários CNJs por invocação e ainda respeita o orçamento de 52s abaixo.\nconst BATCH_SIZE = 24;
 const MAX_RUNTIME_MS = 52_000;
 const DELAY_BETWEEN_MS = 400;
 
