@@ -25,7 +25,6 @@ import {
   getNotificationBootstrapAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
-  syncMyNotificationsAction,
 } from "@/app/actions/notification-actions";
 import type { LexisNotification } from "@/components/system/notification-center";
 
@@ -59,7 +58,6 @@ export default function NotificationsPage() {
     if (!authId) return;
     setLoading(true);
     try {
-      await syncMyNotificationsAction();
       const res = await getNotificationBootstrapAction(100);
       if (res.ok) setItems((res.notifications || []) as LexisNotification[]);
     } finally {
