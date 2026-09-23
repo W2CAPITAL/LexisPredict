@@ -1,6 +1,13 @@
 {
   "functions": {
-    "api/bacen-sgs.ts": { "maxDuration": 15 },
-    "api/inbound-lead.ts": { "maxDuration": 15 }
-  }
+    "api/bacen-sgs.ts": {
+      "maxDuration": 15
+    },
+    "api/inbound-lead.ts": {
+      "maxDuration": 15
+    }
+  },
+  "regions": [
+    "gru1"
+  ]
 }
