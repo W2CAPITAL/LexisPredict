@@ -92,6 +92,21 @@ export const AGENT_CATALOG: Record<CrmAgentId, AgentMeta> = {
     precisa: 'Descreva o que aconteceu no pedido.',
     tools: ['write_brief'],
   },
+  'scanner-processual': {
+    nome: 'Scanner Processual · DataJud + DJEN',
+    descricao: 'Transforma o scanner do Lexis em uma skill chamável por agente.',
+    faz: 'Consulta DataJud e DJEN em paralelo, preserva resultado parcial, registra falhas e explica próximos passos.',
+    precisa: 'CNJ no campo Protocolo ou no pedido.',
+    tools: ['scan_datajud', 'scan_djen', 'normalize_timeline', 'failure_recovery'],
+    deterministic: true,
+  },
+  'lexis-autodev': {
+    nome: 'Lexis AutoDev Orchestrator',
+    descricao: 'Orquestrador inspirado no AutoDev: roteia tarefa, usa subagentes, recovery e verificação.',
+    faz: 'Detecta CNJ, erro, QA, dados, documento ou pesquisa; escolhe a rota e mantém trace das ferramentas.',
+    precisa: 'Descreva o objetivo. Para processo, inclua o CNJ.',
+    tools: ['route_task', 'project_rules', 'scan_datajud', 'scan_djen', 'failure_recovery', 'ai_cascade'],
+  },
   recheck: {
     nome: 'Recheck agendado',
     descricao: 'Agenda revisão daqui a N dias com motivo explícito (CompAI).',
