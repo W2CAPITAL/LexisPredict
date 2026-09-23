@@ -15,6 +15,8 @@ import { composeAgentContext } from "@/lib/agent-runtime/project-context";
 import { buildRuntimeBrief } from "@/lib/agent-runtime/orchestrator";
 import { extractCnj, planLexisTask } from "@/lib/agent-runtime/routing";
 import { formatProcessScannerSkill, runProcessScannerSkill } from "@/lib/scanner/process-skill";
+import { compileLexisSystemPrompt } from "@/lib/ai/prompt-os/compiler";
+import { cleanUserFacingAnswer } from "@/lib/ai/prompt-os/response-contract";
 
 async function ctx() {
   const c = await getUserContext();
@@ -364,9 +366,6 @@ function answerUserPrompt(opts: {
     ].join("\n");
   }
 
-  lines.push(`## Pedido`);
-  lines.push(raw || `(rotina do agente «${opts.agentNome}»)`);
-  lines.push("");
 
   // CNJ no texto
   if (opts.history?.processo) {
@@ -486,32 +485,21 @@ function answerUserPrompt(opts: {
     answered = true;
   }
 
-  if (!answered && k) {
-    // pedido livre: se mencionar cliente/vencido de qualquer forma, ranking
-    if (/cliente|vencid|prazo|atras/.test(q)) {
-      if (/(menos\s*tempo|menor\s*atraso|menos\s*vencid)/i.test(q)) {
-        lines.push(formatMenosVencido(k));
-      } else {
-        lines.push(formatMaisVencido(k));
-      }
+  if (!answered && k && /cliente|vencid|prazo|atras/.test(q)) {
+    if (/(menos\s*tempo|menor\s*atraso|menos\s*vencid)/i.test(q)) {
+      lines.push(formatMenosVencido(k));
     } else {
-      lines.push("## Dados atuais");
-      lines.push(
-        `**${k.vencidos} vencidos**, **${k.ativos} ativos**, **${k.total} total**.`
-      );
-      if (k.maisVencido) {
-        lines.push(
-          `Maior atraso: **${k.maisVencido.cliente}** (${k.maisVencido.diasVencido}d) · ${k.maisVencido.protocolo}`
-        );
-      }
-      lines.push("");
-      lines.push(`_Pedido:_ «${raw}» — se não for isso, reformule (ex.: «top 5 vencidos»).`);
+      lines.push(formatMaisVencido(k));
     }
-  } else if (!answered && !k) {
-    lines.push("Não foi possível ler a carteira de processos.");
+    answered = true;
   }
 
-  return lines.join("\n");
+  // Pedido fora das rotas determinísticas: não injeta KPIs genéricos e não muda o assunto.
+  // A camada de IA recebe somente evidência realmente relacionada ao pedido.
+  if (!answered && raw) return "";
+  if (!answered && !k) return "Não foi possível ler os dados necessários para este pedido.";
+
+  return lines.join("\n").trim();
 }
 
 /** Run com fallback determinístico + timeout na IA */
@@ -556,7 +544,7 @@ export async function runCrmAgentAction(input: {
         success: false,
         content: "",
         logs,
-        error: "Informe o CNJ para executar a skill Scanner Processual.",
+        error: "Informe o CNJ.",
       };
     }
 
@@ -599,10 +587,13 @@ export async function runCrmAgentAction(input: {
           const ai = await Promise.race([
             runCascade({
               preferred,
-              system: composeAgentContext([
-                "Você está no modo Scanner Processual da skill LexisPredict. Use somente a evidência fornecida. Separe fato de hipótese. Aponte falha de fonte e próximos passos. Não invente ato, parte, prazo ou sucesso.",
-                runtimePlan.requiresCouncil ? "Faça revisão FORGE + AEGIS / Council X10 resumida antes da síntese." : "",
-              ]),
+              system: compileLexisSystemPrompt({
+                userText: promptRaw || `Consultar processo ${scan.protocolo}`,
+                extra: [
+                  "Use somente a evidência processual fornecida. Separe fato de hipótese. Não invente ato, parte, prazo ou sucesso.",
+                  runtimePlan.requiresCouncil ? "Revise riscos e contraexemplos internamente antes de responder; não exponha o método." : "",
+                ],
+              }).system,
               messages: [{ role: "user", content: `PEDIDO: ${promptRaw || "analise este processo"}\n\nEVIDENCIA:\n${evidence}` }],
               temperature: 0.15,
               max_tokens: 2200,
@@ -610,7 +601,7 @@ export async function runCrmAgentAction(input: {
             new Promise<any>((resolve) => setTimeout(() => resolve(null), 45_000)),
           ]);
           if (ai?.text) {
-            content += `\n\n## Síntese do orquestrador\n${String(ai.text).trim()}`;
+            content = cleanUserFacingAnswer(String(ai.text));
             logs.push({ agent_id: agentId, tool: "ai_cascade", ok: true, summary: `engine=${ai.engineId}`, at: now() });
           } else {
             logs.push({ agent_id: agentId, tool: "ai_cascade", ok: false, summary: "timeout/fallback determinístico preservado", at: now() });
@@ -620,10 +611,10 @@ export async function runCrmAgentAction(input: {
         }
       }
 
-      return { success: scan.success, content, logs, error: scan.success ? undefined : "As fontes externas falharam; nenhum sucesso foi inventado." };
+      return { success: scan.success, content, logs, error: scan.success ? undefined : "DataJud e DJEN não responderam nesta consulta." };
     } catch (e: any) {
       logs.push({ agent_id: agentId, tool: "scanner-processual", ok: false, summary: e?.message || "falha scanner", at: now() });
-      return { success: false, content: "", logs, error: e?.message || "Falha no Scanner Processual" };
+      return { success: false, content: "", logs, error: e?.message || "Não foi possível consultar o processo." };
     }
   }
 
@@ -640,8 +631,7 @@ export async function runCrmAgentAction(input: {
       at: now(),
     });
 
-    if (!input.useIa) return { success: true, content: brief, logs };
-
+    // Rotas abertas do orquestrador sempre tentam responder ao pedido; o runbook fica interno.
     try {
       const preferred = String(input.preferredEngine || "auto").toLowerCase().trim() || "auto";
       const ai = await Promise.race([
@@ -658,12 +648,12 @@ export async function runCrmAgentAction(input: {
       ]);
       if (ai?.text) {
         logs.push({ agent_id: agentId, tool: "ai_cascade", ok: true, summary: `engine=${ai.engineId}`, at: now() });
-        return { success: true, content: brief + "\n\n## Síntese\n" + String(ai.text).trim(), logs };
+        return { success: true, content: cleanUserFacingAnswer(String(ai.text)), logs };
       }
     } catch (e: any) {
       logs.push({ agent_id: agentId, tool: "ai_cascade", ok: false, summary: e?.message || "falha IA", at: now() });
     }
-    return { success: true, content: brief, logs };
+    return { success: true, content: "Não foi possível aprofundar esta análise agora.", logs };
   }
 
   const outstanding = await agentListOutstandingAction();
@@ -725,7 +715,7 @@ export async function runCrmAgentAction(input: {
         return {
           success: true,
           content:
-            `## Pedido\n${promptRaw || "Enriquecer CNPJ"}\n\n## Contato (BrasilAPI)\n\n` +
+            `## Dados públicos da empresa\n\n` +
             JSON.stringify(br.observed, null, 2),
           logs,
         };
@@ -822,20 +812,9 @@ export async function runCrmAgentAction(input: {
     .join("\n\n");
 
   const perguntaAssistente = [
-    composeAgentContext([
-      `ROTA AUTODEV: ${runtimePlan.route} · ${runtimePlan.reason}. Ferramentas previstas: ${runtimePlan.tools.join(", ")}.`,
-      runtimePlan.requiresCouncil ? "A tarefa pede Council X10: FORGE constrói e AEGIS tenta quebrar antes da síntese." : "",
-    ]),
-    "",
-    "Você é o assistente operacional do Lexis. Responda SOMENTE o pedido do usuário.",
-    "Use os DADOS DE EVIDÊNCIA (já calculados). Não invente cliente/CNJ/dias.",
-    "Se o pedido for 'cliente mais tempo vencido', cite nome, CNJ e dias do MAIS_VENCIDO.",
-    "",
-    `PEDIDO: ${promptRaw || agent.faz}`,
-    "",
-    "DADOS DE EVIDÊNCIA:",
-    evidencia,
-  ].join("\n");
+    `PEDIDO DO USUÁRIO:\n${promptRaw || agent.faz}`,
+    evidencia ? `\nEVIDÊNCIA RELEVANTE:\n${evidencia}` : "",
+  ].filter(Boolean).join("\n");
 
   try {
     const chatPromise = chatAIFlow({
@@ -864,10 +843,7 @@ export async function runCrmAgentAction(input: {
       });
       return {
         success: true,
-        content:
-          `## Pedido\n${promptRaw || agent.nome}\n\n` +
-          `_Motor (assistente Lexis): **${res.engineUtilizada || preferred}**_\n\n` +
-          String(res.resposta).trim(),
+        content: cleanUserFacingAnswer(String(res.resposta)),
         logs,
       };
     }
@@ -877,8 +853,10 @@ export async function runCrmAgentAction(input: {
       const cas = await Promise.race([
         runCascade({
           preferred,
-          system:
-            "Responda só o pedido. Use evidências. Português BR. Não invente.",
+          system: compileLexisSystemPrompt({
+            userText: promptRaw || agent.faz,
+            extra: ["Use a evidência fornecida somente quando ela for relevante ao pedido."],
+          }).system,
           messages: [{ role: "user", content: perguntaAssistente }],
           temperature: 0.15,
           max_tokens: 1600,
@@ -895,9 +873,7 @@ export async function runCrmAgentAction(input: {
         });
         return {
           success: true,
-          content:
-            `## Pedido\n${promptRaw || agent.nome}\n\n_Motor: **${cas.engineId}**_\n\n` +
-            String(cas.text).trim(),
+          content: cleanUserFacingAnswer(String(cas.text)),
           logs,
         };
       }
@@ -913,18 +889,15 @@ export async function runCrmAgentAction(input: {
       at: now(),
     });
 
-    // Sem crédito de IA: dados reais ainda respondem o pedido
     return {
-      success: true,
-      content:
-        det +
-        "\n\n_IA indisponível (saldo/modelo). Acima está a resposta com dados reais da carteira._",
+      success: !!det,
+      content: det || "Não foi possível concluir esta resposta agora.",
       logs,
     };
-  } catch (e: any) {
+  } catch {
     return {
-      success: true,
-      content: det + `\n\n_Erro IA: ${e?.message || e}_`,
+      success: !!det,
+      content: det || "Não foi possível concluir esta resposta agora.",
       logs,
     };
   }
