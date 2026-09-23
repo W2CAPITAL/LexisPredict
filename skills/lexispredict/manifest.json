@@ -1,0 +1,41 @@
+{
+  "name": "lexispredict",
+  "version": "1.0.0",
+  "repository": "W2CAPITAL/LexisPredict",
+  "entry": "SKILL.md",
+  "agents": [
+    "lexis-autodev",
+    "scanner-processual",
+    "document",
+    "case-review",
+    "data",
+    "artifact",
+    "research",
+    "error-recovery",
+    "codebase-investigator",
+    "qa",
+    "self-improve"
+  ],
+  "capabilities": [
+    "multi-tenant-legal-ops",
+    "datajud",
+    "djen",
+    "process-scanner",
+    "agent-routing",
+    "error-recovery",
+    "ai-cascade",
+    "self-improve",
+    "crm",
+    "reports"
+  ],
+  "human_gates": [
+    "protocol",
+    "digital-signature",
+    "payment",
+    "agreement",
+    "merge",
+    "production-deploy",
+    "billing",
+    "role-elevation"
+  ]
+}
