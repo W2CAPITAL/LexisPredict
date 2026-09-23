@@ -10,6 +10,7 @@ import {
 } from '@/lib/datajud';
 
 export const dynamic = 'force-dynamic';
+export const preferredRegion = 'gru1';
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
