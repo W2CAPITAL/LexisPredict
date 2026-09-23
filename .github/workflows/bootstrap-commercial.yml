@@ -31,3 +31,12 @@ jobs:
 
       - name: Commercial contract tests
         run: pnpm test
+
+      - name: Self-improve smoke
+        run: node scripts/selfimprove/smoke.mjs
+
+      - name: Security scan
+        run: pnpm run security
+
+      - name: Production build
+        run: pnpm run build
