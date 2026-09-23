@@ -11,6 +11,9 @@ import type { CrmAgentId, CrmAgentRunLog } from "@/lib/crm-agent/types";
 import { processChat } from "@/lib/ai/chat-service";
 import { runCascade } from "@/lib/ai/cascade";
 import { chatAIFlow } from "@/ai/flows/chat-ai-flow";
+import { composeAgentContext } from "@/lib/agent-runtime/project-context";
+import { extractCnj, planLexisTask } from "@/lib/agent-runtime/routing";
+import { formatProcessScannerSkill, runProcessScannerSkill } from "@/lib/scanner/process-skill";
 
 async function ctx() {
   const c = await getUserContext();
@@ -529,6 +532,99 @@ export async function runCrmAgentAction(input: {
 
   const agentId = (input.agent_id in AGENT_CATALOG ? input.agent_id : "livre") as CrmAgentId;
   const agent = AGENT_CATALOG[agentId];
+  const promptRaw = String(input.prompt || "").trim();
+  const runtimePlan = planLexisTask([promptRaw, input.protocolo || ""].filter(Boolean).join(" "), agentId);
+
+  logs.push({
+    agent_id: agentId,
+    tool: "route_task",
+    ok: true,
+    summary: `${runtimePlan.route} · ${runtimePlan.reason} · risk=${runtimePlan.risk}`,
+    at: now(),
+  });
+
+  const routedCnj = String(input.protocolo || extractCnj(promptRaw) || "").trim();
+  const shouldUseScannerSkill =
+    agentId === "scanner-processual" ||
+    agentId === "enriquecer-cnj" ||
+    (agentId === "lexis-autodev" && runtimePlan.route === "scanner-processual");
+
+  if (shouldUseScannerSkill) {
+    if (!routedCnj) {
+      return {
+        success: false,
+        content: "",
+        logs,
+        error: "Informe o CNJ para executar a skill Scanner Processual.",
+      };
+    }
+
+    try {
+      const scan = await runProcessScannerSkill(routedCnj);
+      for (const t of scan.trace) {
+        logs.push({
+          agent_id: agentId,
+          tool: t.tool || t.id,
+          ok: t.ok,
+          summary: t.detail,
+          at: now(),
+        });
+      }
+
+      let content = formatProcessScannerSkill(scan);
+
+      if (input.useIa) {
+        try {
+          const preferred = String(input.preferredEngine || "auto").toLowerCase().trim() || "auto";
+          const evidence = JSON.stringify({
+            protocolo: scan.protocolo,
+            sources: scan.sources,
+            datajud: {
+              classe: scan.datajud?.classe,
+              tribunal: scan.datajud?.tribunal,
+              orgaoJulgador: scan.datajud?.orgaoJulgador,
+              movimentos: Array.isArray(scan.datajud?.movimentos) ? scan.datajud.movimentos.slice(-12) : [],
+              error: scan.datajud?.error,
+              message: scan.datajud?.message,
+            },
+            djen: {
+              count: scan.djen.count,
+              error: scan.djen.error,
+              items: scan.djen.items.slice(0, 8),
+            },
+            hypotheses: scan.hypotheses,
+          }).slice(0, 22000);
+
+          const ai = await Promise.race([
+            runCascade({
+              preferred,
+              system: composeAgentContext([
+                "Você está no modo Scanner Processual da skill LexisPredict. Use somente a evidência fornecida. Separe fato de hipótese. Aponte falha de fonte e próximos passos. Não invente ato, parte, prazo ou sucesso.",
+                runtimePlan.requiresCouncil ? "Faça revisão FORGE + AEGIS / Council X10 resumida antes da síntese." : "",
+              ]),
+              messages: [{ role: "user", content: `PEDIDO: ${promptRaw || "analise este processo"}\n\nEVIDENCIA:\n${evidence}` }],
+              temperature: 0.15,
+              max_tokens: 2200,
+            }),
+            new Promise<any>((resolve) => setTimeout(() => resolve(null), 45_000)),
+          ]);
+          if (ai?.text) {
+            content += `\n\n## Síntese do orquestrador\n${String(ai.text).trim()}`;
+            logs.push({ agent_id: agentId, tool: "ai_cascade", ok: true, summary: `engine=${ai.engineId}`, at: now() });
+          } else {
+            logs.push({ agent_id: agentId, tool: "ai_cascade", ok: false, summary: "timeout/fallback determinístico preservado", at: now() });
+          }
+        } catch (e: any) {
+          logs.push({ agent_id: agentId, tool: "ai_cascade", ok: false, summary: e?.message || "falha IA; scanner preservado", at: now() });
+        }
+      }
+
+      return { success: scan.success, content, logs, error: scan.success ? undefined : "As fontes externas falharam; nenhum sucesso foi inventado." };
+    } catch (e: any) {
+      logs.push({ agent_id: agentId, tool: "scanner-processual", ok: false, summary: e?.message || "falha scanner", at: now() });
+      return { success: false, content: "", logs, error: e?.message || "Falha no Scanner Processual" };
+    }
+  }
 
   const outstanding = await agentListOutstandingAction();
   logs.push({
@@ -550,7 +646,6 @@ export async function runCrmAgentAction(input: {
     at: now(),
   });
 
-  const promptRaw = String(input.prompt || "").trim();
   const q = promptRaw.toLowerCase();
 
   // Histórico CNJ / negócio se pedido
@@ -687,6 +782,11 @@ export async function runCrmAgentAction(input: {
     .join("\n\n");
 
   const perguntaAssistente = [
+    composeAgentContext([
+      `ROTA AUTODEV: ${runtimePlan.route} · ${runtimePlan.reason}. Ferramentas previstas: ${runtimePlan.tools.join(", ")}.`,
+      runtimePlan.requiresCouncil ? "A tarefa pede Council X10: FORGE constrói e AEGIS tenta quebrar antes da síntese." : "",
+    ]),
+    "",
     "Você é o assistente operacional do Lexis. Responda SOMENTE o pedido do usuário.",
     "Use os DADOS DE EVIDÊNCIA (já calculados). Não invente cliente/CNJ/dias.",
     "Se o pedido for 'cliente mais tempo vencido', cite nome, CNJ e dias do MAIS_VENCIDO.",
