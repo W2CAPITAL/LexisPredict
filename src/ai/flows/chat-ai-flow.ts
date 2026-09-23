@@ -7,27 +7,9 @@
 import { runCascade, type ChatTurn, type VisionImage } from '@/lib/ai/cascade';
 import { parseThinkingAnswer, isSimplePrompt } from '@/lib/ai/chat-parse';
 import { extractCnjFromText } from '@/lib/ai/motors';
-
-const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
-Hoje: ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
-
-- Portugues do Brasil, direto e honesto. Nao invente fatos, CNJ, valores ou prazos.
-- Sempre que citar prazos/urgencia, relacione com "hoje" quando aplicavel.
-- PDF/imagem: leia e explique (decisao judicial ou qualquer documento).
-- Em contexto de cliente use "nossa equipe".
-- Se a pergunta pedir algo incerto (desfecho, risco) responda com cautela e pergunte o que falta, em vez de afirmar.
-
-Quando a pergunta for COMPLEXA (analise, documento, estrategia), use:
-<thinking>
-pontos internos curtos
-</thinking>
-<answer>
-resposta final ao usuario
-</answer>
-
-Quando for SIMPLES (oi, obrigado, pergunta curta sem anexo), responda SO o texto final, SEM tags.`;
-
-const SYSTEM_FAST = `Voce e o Assistente LexisPredict. Resposta curta e natural em portugues do Brasil. Sem tags XML. Sem "como IA".`;
+import { compileLexisSystemPrompt } from '@/lib/ai/prompt-os/compiler';
+import { cleanUserFacingAnswer } from '@/lib/ai/prompt-os/response-contract';
+import { runProcessScannerSkill } from '@/lib/scanner/process-skill';
 
 export type ChatAiInput = {
   pergunta: string;
@@ -87,34 +69,49 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     userContent += `\n\n--- PDF${input.pdfName ? ` (${input.pdfName})` : ''} ---\n${String(input.pdfText).slice(0, 32000)}\n--- FIM ---`;
   }
 
-  // Se citou CNJ e ainda nao ha contexto tribunal: puxa DJEN automaticamente
+  // CNJ usa o scanner consolidado DataJud + DJEN. O resultado entra como evidência,
+  // sem transformar detalhes internos de skill/fallback em texto para o usuário.
   let tribunalCtx = input.tribunalContext || '';
   const cnj = extractCnjFromText(pergunta + ' ' + (input.pdfText || '').slice(0, 500));
   if (cnj && !String(tribunalCtx).trim()) {
     try {
-      const { fetchDjenComunicacoes } = await import('@/lib/djen');
-      // format CNJ with punctuation if needed
       const cnjFmt =
         cnj.length === 20
           ? `${cnj.slice(0, 7)}-${cnj.slice(7, 9)}.${cnj.slice(9, 13)}.${cnj.slice(13, 14)}.${cnj.slice(14, 16)}.${cnj.slice(16, 20)}`
           : cnj;
-      const djen = await fetchDjenComunicacoes(cnjFmt);
-      const items = (djen as any)?.items || (djen as any)?.comunicacoes || [];
-      if ((djen as any)?.success && items.length) {
-        const blocos = items.slice(0, 12).map((d: any, i: number) => {
-          const data = d.data_disponibilizacao || d.data || '';
-          const tipo = d.tipoComunicacao || d.tipoDocumento || d.tipo || '';
-          const orgao = d.nomeOrgao || '';
-          const texto = String(d.texto || d.conteudo || d.inteiroTeor || '').slice(0, 2500);
-          return `[${i + 1}] ${data} | ${tipo} | ${orgao}\n${texto}`;
-        });
-        tribunalCtx = `CNJ ${cnjFmt}\nPublicacoes DJEN (${items.length}):\n` + blocos.join('\n---\n');
-      } else {
-        const err = (djen as any)?.error || '';
-        tribunalCtx = `CNJ ${cnjFmt}: sem publicacoes DJEN no periodo consultado.${err ? ' (' + err + ')' : ''} Interprete a estrutura do CNJ e oriente consulta no tribunal se necessario.`;
-      }
+      const scan = await runProcessScannerSkill(cnjFmt);
+      tribunalCtx = JSON.stringify({
+        cnj: scan.protocolo,
+        tribunal: scan.tribunalAlias,
+        fontes: scan.sources,
+        datajud: {
+          classe: scan.datajud?.classe || null,
+          grau: scan.datajud?.grau || null,
+          tribunal: scan.datajud?.tribunal || null,
+          orgaoJulgador: scan.datajud?.orgaoJulgador || null,
+          dataAjuizamento: scan.datajud?.dataAjuizamento || null,
+          movimentos: Array.isArray(scan.datajud?.movimentos) ? scan.datajud.movimentos.slice(-15) : [],
+          erro: scan.datajud?.error ? scan.datajud?.message || 'falha' : null,
+        },
+        djen: {
+          quantidade: scan.djen?.count || 0,
+          erro: scan.djen?.success ? null : scan.djen?.error || 'falha',
+          publicacoes: (scan.djen?.items || []).slice(0, 8).map((d: any) => ({
+            data: d.data_disponibilizacao,
+            tipo: d.tipoComunicacao || d.tipoDocumento,
+            orgao: d.nomeOrgao,
+            texto: String(d.texto || '').slice(0, 1800),
+            link: d.link || null,
+          })),
+        },
+        hipoteses: scan.hypotheses,
+      });
     } catch (e: any) {
-      tribunalCtx = `CNJ detectado, mas falha ao consultar DJEN: ${e?.message || e}`;
+      tribunalCtx = JSON.stringify({
+        cnj,
+        consulta: 'inconclusiva',
+        erro: e?.message || String(e),
+      });
     }
   }
 
@@ -127,38 +124,56 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
 
   history.push({ role: 'user', content: userContent });
 
+  const dateLabel = new Date().toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const compiled = compileLexisSystemPrompt({
+    userText: pergunta || userContent,
+    hasAttachment: hasImg || hasPdf,
+    dateLabel,
+    extra: tribunalCtx
+      ? ['Existe evidência processual anexada ao pedido. Use-a somente quando ela for relevante ao que foi perguntado.']
+      : [],
+  });
+
+  const forceEngineId =
+    ['auto', 'omni', 'omniroute', 'cascade'].includes(preferred)
+      ? undefined
+      : preferred.includes('anthropic')
+        ? 'claude'
+        : preferred;
+
   try {
     const r = await runCascade({
       preferred,
-      forceEngineId:
-        preferred.includes('claude') || preferred.includes('omni') || preferred.includes('anthropic')
-          ? 'claude'
-          : preferred === 'auto'
-            ? undefined
-            : preferred,
+      forceEngineId,
       surface: 'chat',
-      system: simple ? SYSTEM_FAST : SYSTEM_FULL,
+      system: compiled.system,
       messages: history,
       images: input.images,
-      temperature: simple ? 0.5 : input.temperature ?? 0.35,
-      max_tokens: simple ? 120 : input.max_tokens ?? 4096,
+      temperature: simple ? 0.35 : input.temperature ?? 0.25,
+      max_tokens: simple ? 220 : input.max_tokens ?? 4096,
     });
 
     const parsed = parseThinkingAnswer(r.text);
+    const answer = cleanUserFacingAnswer(parsed.answer);
     return {
-      resposta: parsed.answer,
-      thinking: simple ? null : parsed.thinking,
+      resposta: answer,
+      thinking: input.showThinking === true && !simple ? parsed.thinking : null,
       engineUtilizada: `${r.engineId}:${r.model}`,
       latencia: r.latencyMs,
       tokensConsumidos: r.tokens || 0,
-      sucesso: true,
+      sucesso: !!answer,
       baHint: null,
     };
-  } catch (e: any) {
+  } catch {
     return {
-      resposta: `IA indisponivel: ${e?.message || e}`,
+      resposta: 'Não foi possível concluir a resposta agora.',
       thinking: null,
-      engineUtilizada: 'FALLBACK',
+      engineUtilizada: 'none',
       latencia: 0,
       tokensConsumidos: 0,
       sucesso: false,
