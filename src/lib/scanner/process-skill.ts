@@ -174,14 +174,23 @@ export async function runProcessScannerSkill(protocolo: string): Promise<Process
 
 export function formatProcessScannerSkill(result: ProcessScannerSkillResult) {
   const lines: string[] = [
-    '## Scanner Processual · DataJud + DJEN',
+    '## Processo consultado',
     `**${result.protocolo} · ${result.tribunalAlias.toUpperCase()}**`,
-    result.headline,
     '',
-    '### Execução',
   ];
 
-  for (const t of result.trace) lines.push(`- ${t.ok ? '✓' : '△'} **${t.label}** — ${t.detail}`);
+  const failed = result.sources.filter((s) => !s.ok);
+  const ok = result.sources.filter((s) => s.ok);
+  if (ok.length) {
+    lines.push(
+      ok.map((s) => `${s.source}: ${s.found ? `${s.count} registro(s) relevante(s)` : 'consulta concluída sem resultado público relevante'}`).join(' · ')
+    );
+  }
+  if (failed.length) {
+    lines.push(
+      failed.map((s) => `${s.source}: não respondeu nesta consulta${s.error ? ` (${s.error})` : ''}`).join(' · ')
+    );
+  }
 
   const movements = Array.isArray(result.datajud?.movimentos) ? result.datajud.movimentos : [];
   if (movements.length) {
@@ -201,14 +210,21 @@ export function formatProcessScannerSkill(result: ProcessScannerSkillResult) {
     }
   }
 
-  if (result.hypotheses.length) {
-    lines.push('', '### Hipóteses concorrentes');
-    for (const h of result.hypotheses) lines.push(`- ${h}`);
+  if (!movements.length && !result.djen?.items?.length) {
+    lines.push('', 'Não apareceu evidência pública conclusiva nas fontes que responderam.');
+    if (result.hypotheses.length) {
+      for (const h of result.hypotheses.slice(0, 3)) lines.push(`- ${h}`);
+    }
   }
 
-  lines.push('', '### Próximos passos');
-  result.nextSteps.forEach((x, i) => lines.push(`${i + 1}. ${x}`));
+  // Só mostra orientação adicional quando a consulta ficou parcial/vazia.
+  if (result.partial || (!movements.length && !result.djen?.items?.length)) {
+    const useful = result.nextSteps.filter((x) => !/repetir somente a fonte/i.test(x)).slice(0, 2);
+    if (useful.length) {
+      lines.push('', '### Para confirmar');
+      useful.forEach((x, i) => lines.push(`${i + 1}. ${x}`));
+    }
+  }
 
-  lines.push('', '_Metadados públicos não substituem os autos, a publicação oficial nem a conferência profissional de prazo/estratégia._');
-  return lines.join('\n');
+  return lines.join('\n').trim();
 }
