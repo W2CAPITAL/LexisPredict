@@ -62,7 +62,7 @@ export async function processChat(request: AIRequest): Promise<AIResponse> {
 
   return {
     success: false,
-    content: "Nossos motores neurais estão em recalibração profunda após múltiplas tentativas.",
+    content: "Não foi possível concluir esta resposta agora.",
     provider: 'system',
     model: 'none',
     usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
