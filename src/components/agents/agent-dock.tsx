@@ -293,16 +293,21 @@ export function AgentDock() {
               <p className="text-xs text-zinc-400">Status: {step}</p>
             ) : null}
 
-            {/* Logs */}
+            {/* Execução técnica fica recolhida para não competir com a resposta. */}
             {logs.length > 0 ? (
-              <ul className="space-y-0.5 rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-[11px] text-zinc-300">
-                {logs.map((l, i) => (
-                  <li key={i}>
-                    <span className={l.ok === false ? "text-amber-400" : "text-emerald-400"}>•</span>{" "}
-                    {l.tool} · {l.summary}
-                  </li>
-                ))}
-              </ul>
+              <details className="rounded-lg border border-zinc-800 bg-zinc-900/60">
+                <summary className="cursor-pointer select-none px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-300">
+                  Detalhes da execução ({logs.length})
+                </summary>
+                <ul className="space-y-0.5 border-t border-zinc-800 p-2 text-[11px] text-zinc-400">
+                  {logs.map((l, i) => (
+                    <li key={i}>
+                      <span className={l.ok === false ? "text-amber-400" : "text-emerald-400"}>•</span>{" "}
+                      {l.tool} · {l.summary}
+                    </li>
+                  ))}
+                </ul>
+              </details>
             ) : null}
 
             {/* RESPOSTA — sempre legível, no topo visual após run */}
