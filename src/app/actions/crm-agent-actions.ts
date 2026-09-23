@@ -12,6 +12,7 @@ import { processChat } from "@/lib/ai/chat-service";
 import { runCascade } from "@/lib/ai/cascade";
 import { chatAIFlow } from "@/ai/flows/chat-ai-flow";
 import { composeAgentContext } from "@/lib/agent-runtime/project-context";
+import { buildRuntimeBrief } from "@/lib/agent-runtime/orchestrator";
 import { extractCnj, planLexisTask } from "@/lib/agent-runtime/routing";
 import { formatProcessScannerSkill, runProcessScannerSkill } from "@/lib/scanner/process-skill";
 
@@ -624,6 +625,45 @@ export async function runCrmAgentAction(input: {
       logs.push({ agent_id: agentId, tool: "scanner-processual", ok: false, summary: e?.message || "falha scanner", at: now() });
       return { success: false, content: "", logs, error: e?.message || "Falha no Scanner Processual" };
     }
+  }
+
+  if (
+    agentId === "lexis-autodev" &&
+    ["error-recovery", "qa", "codebase-investigator", "self-improve"].includes(runtimePlan.route)
+  ) {
+    const brief = buildRuntimeBrief(runtimePlan, promptRaw);
+    logs.push({
+      agent_id: agentId,
+      tool: runtimePlan.route,
+      ok: true,
+      summary: "rota determinística do AutoDev Runtime",
+      at: now(),
+    });
+
+    if (!input.useIa) return { success: true, content: brief, logs };
+
+    try {
+      const preferred = String(input.preferredEngine || "auto").toLowerCase().trim() || "auto";
+      const ai = await Promise.race([
+        runCascade({
+          preferred,
+          system: composeAgentContext([
+            "Você é o Lexis AutoDev Orchestrator. Expanda o runbook fornecido sem inventar execução. Se não houver logs/testes reais, diga que são passos a executar.",
+          ]),
+          messages: [{ role: "user", content: `${promptRaw}\n\nRUNBOOK:\n${brief}` }],
+          temperature: 0.15,
+          max_tokens: 1600,
+        }),
+        new Promise<any>((resolve) => setTimeout(() => resolve(null), 35_000)),
+      ]);
+      if (ai?.text) {
+        logs.push({ agent_id: agentId, tool: "ai_cascade", ok: true, summary: `engine=${ai.engineId}`, at: now() });
+        return { success: true, content: brief + "\n\n## Síntese\n" + String(ai.text).trim(), logs };
+      }
+    } catch (e: any) {
+      logs.push({ agent_id: agentId, tool: "ai_cascade", ok: false, summary: e?.message || "falha IA", at: now() });
+    }
+    return { success: true, content: brief, logs };
   }
 
   const outstanding = await agentListOutstandingAction();
