@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { BookOpen, Search, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { GENERATED_PROMPT_CORPUS } from "@/lib/ai/prompt-os/corpus.generated";
 
 export type Prompt = {
   id: string;
@@ -57,6 +58,21 @@ export const LEXIS_PROMPTS: Prompt[] = [
   },
 ];
 
+
+const CORPUS_PROMPTS: Prompt[] = GENERATED_PROMPT_CORPUS
+  .filter((p) => p.kind !== "eval")
+  .map((p) => ({
+    id: `corpus:${p.id}`,
+    title: p.title,
+    description: `${p.source} · ${p.tags.slice(0, 4).join(" · ")}`,
+    category: p.category,
+    prompt: p.text + "\n\n",
+  }));
+
+const ALL_PROMPTS: Prompt[] = [...LEXIS_PROMPTS, ...CORPUS_PROMPTS].filter(
+  (p, index, arr) => arr.findIndex((x) => x.id === p.id) === index
+);
+
 export function PromptLibraryPanel({
   onInsert,
   className,
@@ -70,8 +86,8 @@ export function PromptLibraryPanel({
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return LEXIS_PROMPTS;
-    return LEXIS_PROMPTS.filter(
+    if (!s) return ALL_PROMPTS;
+    return ALL_PROMPTS.filter(
       (p) =>
         p.title.toLowerCase().includes(s) ||
         p.description.toLowerCase().includes(s) ||
