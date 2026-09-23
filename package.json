@@ -17,7 +17,8 @@
     "autoimprove": "node scripts/selfimprove/cycle.mjs --publicar",
     "autoimprove:rapido": "node scripts/selfimprove/cycle.mjs --publicar --sem-testes",
     "autoimprove:publicar": "node scripts/selfimprove/publish.mjs",
-    "commercial:check": "node scripts/commercial-check.mjs"
+    "commercial:check": "node scripts/commercial-check.mjs",
+    "prompts:sync": "node scripts/prompts/sync-corpus.mjs"
   },
   "dependencies": {
     "@heyputer/puter.js": "^2.1.0",
