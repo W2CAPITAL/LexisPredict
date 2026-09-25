@@ -9,7 +9,7 @@ import type { UserRole } from '@/lib/supabase';
  *
  * Administrador:
  * - todas as funções operacionais
- * - visão da carteira da empresa
+ * - somente o próprio escopo de processos
  *
  * Supervisor:
  * - funções operacionais completas
@@ -100,17 +100,17 @@ export function isMasterView(cargo?: RoleLike): boolean {
   return getCargoWeight(cargo) >= ROLE_WEIGHTS.Supervisor;
 }
 
-/** Administrador ou superior pode consultar a carteira consolidada da empresa. */
+/** Somente Supervisor/Superadmin consultam a carteira consolidada da empresa. */
 export function canSeeCompanyProcesses(cargo?: RoleLike): boolean {
-  return getCargoWeight(cargo) >= ROLE_WEIGHTS.Administrador;
+  return getCargoWeight(cargo) >= ROLE_WEIGHTS.Supervisor;
 }
 
 export type CaseScope = 'mine' | 'empresa';
 
 /**
  * Fonte única de escopo da carteira.
- * - Administrador/Supervisor/Superadmin => empresa
- * - Operador/Visualizador => mine
+ * - Supervisor/Superadmin => empresa
+ * - Administrador/Operador/Visualizador => mine
  */
 export function resolveCaseScope(cargo?: RoleLike): CaseScope {
   return canSeeCompanyProcesses(cargo) ? 'empresa' : 'mine';
