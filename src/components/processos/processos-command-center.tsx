@@ -56,6 +56,8 @@ import { generateDossieProcessoPDFAction } from "@/app/actions/dossie-processo-a
 import { consultarOabAction, type OabResult } from "@/app/actions/oab-actions";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { processOperationalCoverage, processSourceGapCount, processSourceMatrix, recommendedProcessActions } from "@/lib/processos-command-intelligence";
+import { gerarTarefasJuridicas } from "@/lib/automacao-tarefas";
 
 type Props = {
   items: LegalCase[];
@@ -85,7 +87,7 @@ type Props = {
 };
 
 type DetailTab = "overview" | "movements" | "deadlines" | "parties" | "documents" | "ai";
-type FocusPreset = "all" | "urgent" | "returns" | "djen" | "updates" | "silence" | "ba";
+type FocusPreset = "all" | "urgent" | "returns" | "djen" | "updates" | "silence" | "sources" | "ba";
 
 const COLORS = ["#4f7cff", "#7c5cff", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#94a3b8"];
 
@@ -356,6 +358,7 @@ export function ProcessosCommandCenter(props: Props) {
       if (focusPreset === "djen" && !c.djen_nova_comunicacao && !djenCriticalLabel(c)) return false;
       if (focusPreset === "updates" && !(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao)) return false;
       if (focusPreset === "silence" && (caseSilenceDays(c) == null || (caseSilenceDays(c) as number) < 45)) return false;
+      if (focusPreset === "sources" && processSourceGapCount(c) < 2) return false;
       if (focusPreset === "ba" && !c.indicio_busca_apreensao) return false;
       return true;
     });
@@ -406,6 +409,7 @@ export function ProcessosCommandCenter(props: Props) {
     djen:props.items.filter(c=>c.djen_nova_comunicacao||!!djenCriticalLabel(c)).length,
     updates:props.items.filter(c=>c.tem_novo_andamento||c.tem_atualizacao_pos_retorno||c.djen_nova_comunicacao).length,
     silence:props.items.filter(c=>(caseSilenceDays(c)||0)>=45).length,
+    sources:props.items.filter(c=>processSourceGapCount(c)>=2).length,
     ba:props.items.filter(c=>!!c.indicio_busca_apreensao).length,
   }),[props.items]);
 
@@ -511,6 +515,10 @@ export function ProcessosCommandCenter(props: Props) {
 
   const timeline = selected ? miniTimeline(selected) : [];
   const selectedSilence = selected ? caseSilenceDays(selected) : null;
+  const selectedSources = React.useMemo(() => selected ? processSourceMatrix(selected) : [], [selected]);
+  const selectedActions = React.useMemo(() => selected ? recommendedProcessActions(selected) : [], [selected]);
+  const selectedCoverage = React.useMemo(() => selected ? processOperationalCoverage(selected) : 0, [selected]);
+  const selectedTask = React.useMemo(() => { if (!selected) return null; try { return gerarTarefasJuridicas([selected], { limit: 1 })[0] || null; } catch { return null; } }, [selected]);
 
   return (
     <section className="min-h-full bg-[#050b18] text-slate-100">
@@ -586,6 +594,7 @@ export function ProcessosCommandCenter(props: Props) {
                 ["djen","Radar DJEN",focusCounts.djen,Gavel],
                 ["updates","Novidades",focusCounts.updates,Activity],
                 ["silence","Silêncio +45d",focusCounts.silence,FileClock],
+                ["sources","Fontes incompletas",focusCounts.sources,Database],
                 ["ba","B.A.",focusCounts.ba,Scale],
               ] as const).map(([value,label,count,Icon])=>(
                 <button key={value} onClick={()=>setFocusPreset(value)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[8px] font-bold transition",focusPreset===value?"border-blue-400/35 bg-blue-500/15 text-blue-100":"border-white/8 bg-white/[.025] text-slate-500 hover:bg-white/5 hover:text-slate-200")}>
@@ -780,6 +789,7 @@ export function ProcessosCommandCenter(props: Props) {
                   {selectedSilence != null ? <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[8px] text-amber-200">{selectedSilence}d sem movimento</span> : null}
                   <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold",toneBadge(returnState(selected).tone))}>{returnState(selected).label}</span>
                   <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold",toneBadge(sourceFreshness(selected).tone))}>Fonte {sourceFreshness(selected).label}</span>
+                  <span className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[8px] font-bold text-blue-200">Cobertura {selectedCoverage}%</span>
                   {selected.datajud_hash?<span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[8px] font-bold text-cyan-200">Snapshot ativo</span>:null}
                 </div>
               </div>
