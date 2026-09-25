@@ -257,3 +257,110 @@ A tela nunca deve apresentar como equivalentes:
 - **crawler externo:** apoio eventual de descoberta, nunca fonte oficial;
 - **IA:** análise/triagem, nunca substituto da fonte processual.
 
+
+
+## Evolução v3 — aparência do mock + operação realmente acionável
+
+A referência visual 4K passou a ser tratada como contrato de produto, não apenas inspiração:
+
+- **topo:** ações DataJud/DJEN/CSV/BI/Relatório;
+- **faixa de KPIs:** carteira, ativos, vencidos, silêncio, risco e cobertura;
+- **presets rápidos:** urgentes, retornos, DJEN, novidades, silêncio, fontes incompletas e B.A.;
+- **tabela central:** metadados processuais + operação + risco + frescor;
+- **inspector sticky:** visão, movimentos, prazos, partes/OAB, documentos/fontes e IA;
+- **rodapé analítico:** distribuição por tribunal, situação e evolução DataJud/DJEN.
+
+### Inteligência operacional determinística
+
+Novo módulo: `src/lib/processos-command-intelligence.ts`.
+
+Ele não inventa parecer jurídico. Ele calcula, a partir do que já existe no processo:
+
+- matriz de fontes;
+- lacunas de DataJud/DJEN/sistema/OAB/snapshot/operação;
+- cobertura operacional ponderada;
+- ações recomendadas;
+- avisos de fonte envelhecida;
+- prioridade de revisão por novidade pós-retorno, DJEN crítico, silêncio ou retorno vencido.
+
+A tela também reaproveita `gerarTarefasJuridicas()`, portanto o próximo passo mostrado no inspector é compatível com a fila real de Tarefas do LexisPredict.
+
+### Reuso dos repositórios adicionais
+
+#### sobeitnow0/extensao-djen-advogado
+
+Aplicado:
+- radar de termos críticos;
+- separação entre publicação e tarefa;
+- fluxo “ler publicação → decidir ação → registrar retorno/agenda”.
+
+Não aplicado:
+- gamificação;
+- storage local isolado;
+- cálculo automático de prazo fatal a partir de texto sem evidência suficiente.
+
+#### jespimentel/crawler_sg
+
+Aplicado conceitualmente:
+- snapshot/hash para detectar mudança;
+- filtro de fontes incompletas;
+- descoberta por parte/OAB como dimensão de análise.
+
+Não aplicado:
+- scraping eSAJ por HTML, por ser frágil e não oficial.
+
+#### PietroTamanini/API-consulta-OAB
+
+Aplicado:
+- validação CNA/OAB dentro da aba Partes;
+- cache de sucesso já existente para reduzir consultas repetidas;
+- fallback explícito para consulta oficial quando cloud/anti-bot impede leitura automática.
+
+Não aplicado:
+- Playwright/reCAPTCHA/MySQL local.
+
+#### RafaFreitasDev/processos-pje
+
+Aplicado:
+- PJe como dimensão “Sistema processual”;
+- sistema processual entra na matriz de fontes e filtros.
+
+Não aplicado:
+- automação Chrome/Python dependente de máquina.
+
+#### DeHor-Labs/mcp-juridico-brasil
+
+Aplicado:
+- separação entre busca, movimentos, monitoramento/snapshot e prazo;
+- conceito de cobertura de fonte por processo;
+- DataJud como fonte pública primária;
+- monitoramento e prazo são conceitos distintos.
+
+Não aplicado:
+- servidor MCP Python dentro do produto web.
+
+### Matriz de proveniência
+
+Cada processo expõe explicitamente:
+
+| Fonte | Categoria | Uso |
+|---|---|---|
+| DataJud CNJ | oficial | metadados/movimentos públicos |
+| DJEN | oficial | comunicações/publicações |
+| Sistema processual | oficial/metadado | PJe, eProc, Projudi etc. quando informado |
+| CNA/OAB | oficial | validação do representante |
+| Snapshot/hash | evidência técnica | detectar diferença entre consultas |
+| Carteira/atendimento | operacional | dono, atendimento, próximo retorno |
+
+A cobertura exibida não é “chance jurídica” nem “confiabilidade do mérito”; é somente cobertura operacional das fontes esperadas.
+
+### Guardrail de uso
+
+Uma lacuna de fonte gera uma ação de validação, não uma conclusão.
+
+Exemplo:
+- correto: “DJEN não foi consultado nesta visão; revisar fonte”;
+- incorreto: “não houve publicação DJEN”.
+
+Da mesma forma:
+- “45 dias sem movimento conhecido” não equivale a “45 dias sem movimento no tribunal” sem atualização da fonte.
