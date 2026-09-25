@@ -26,6 +26,12 @@ import {
   ShieldAlert,
   Sparkles,
   UserRoundSearch,
+  ShieldCheck,
+  Clock3,
+  Database,
+  Gauge,
+  Radar,
+  Rows3,
   X,
 } from "lucide-react";
 import {
@@ -47,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { computeOpsLinha } from "@/lib/ops-linha";
 import { openDjenPublicacaoAction } from "@/app/actions/open-djen-action";
 import { generateDossieProcessoPDFAction } from "@/app/actions/dossie-processo-actions";
+import { consultarOabAction, type OabResult } from "@/app/actions/oab-actions";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -78,6 +85,7 @@ type Props = {
 };
 
 type DetailTab = "overview" | "movements" | "parties" | "documents" | "ai";
+type FocusPreset = "all" | "urgent" | "returns" | "djen" | "updates" | "silence" | "ba";
 
 const COLORS = ["#4f7cff", "#7c5cff", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#94a3b8"];
 
@@ -194,6 +202,45 @@ function riskLabel(c: LegalCase) {
   return "Baixo";
 }
 
+function returnState(c: LegalCase) {
+  const days = typeof c.diasFaltando === "number" ? c.diasFaltando : null;
+  if (c.status === "Vencido" || (days != null && days < 0)) return { label: "Vencido", tone: "red" as const };
+  if (days === 0 || c.status === "É Hoje") return { label: "Hoje", tone: "blue" as const };
+  if ((days != null && days <= 3) || c.status === "Atenção") return { label: "Até 3 dias", tone: "amber" as const };
+  if (c.proximoPrazo) return { label: "Programado", tone: "green" as const };
+  return { label: "Sem retorno", tone: "slate" as const };
+}
+
+function inferOabUf(c: LegalCase) {
+  const explicit = clean(pick(c, "oab_uf", "oabUf", "advogado_oab_uf")).toUpperCase();
+  if (/^[A-Z]{2}$/.test(explicit)) return explicit;
+  const oab = clean(pick(c, "oab", "oab_numero", "advogado_oab")).toUpperCase();
+  const embedded = oab.match(/\b([A-Z]{2})\b/);
+  if (embedded?.[1]) return embedded[1];
+  const tribunal = clean(c.tribunal).toUpperCase();
+  const match = tribunal.match(/^TJ([A-Z]{2})$/);
+  return match?.[1] || "";
+}
+
+function sourceFreshness(c: LegalCase) {
+  const dj = daysSince(c.datajud_consultado_em);
+  const de = daysSince(c.djen_consultado_em);
+  const freshest = [dj, de].filter((x): x is number => typeof x === "number").sort((a,b)=>a-b)[0];
+  if (freshest == null) return { label: "Não consultado", tone: "red" as const };
+  if (freshest <= 1) return { label: "Atualizado", tone: "green" as const };
+  if (freshest <= 7) return { label: freshest+"d", tone: "blue" as const };
+  if (freshest <= 30) return { label: freshest+"d", tone: "amber" as const };
+  return { label: freshest+"d", tone: "red" as const };
+}
+
+function toneBadge(tone:"red"|"blue"|"amber"|"green"|"slate"){
+  if(tone==="red")return "border-red-400/25 bg-red-500/12 text-red-200";
+  if(tone==="blue")return "border-blue-400/25 bg-blue-500/12 text-blue-200";
+  if(tone==="amber")return "border-amber-400/25 bg-amber-500/12 text-amber-200";
+  if(tone==="green")return "border-emerald-400/25 bg-emerald-500/12 text-emerald-200";
+  return "border-slate-400/15 bg-slate-500/8 text-slate-400";
+}
+
 function kpiTone(kind: "blue" | "amber" | "red" | "cyan") {
   if (kind === "amber") return "from-amber-500/18 to-transparent text-amber-200 border-amber-400/20";
   if (kind === "red") return "from-red-500/18 to-transparent text-red-200 border-red-400/20";
@@ -265,7 +312,9 @@ export function ProcessosCommandCenter(props: Props) {
   const [responsavel, setResponsavel] = React.useState("");
   const [novidade, setNovidade] = React.useState("");
   const [page, setPage] = React.useState(1);
-  const [busy, setBusy] = React.useState<"" | "djen" | "dossie">("");
+  const [busy, setBusy] = React.useState<"" | "djen" | "dossie" | "oab">("");
+  const [focusPreset,setFocusPreset]=React.useState<FocusPreset>("all");
+  const [oabResult,setOabResult]=React.useState<OabResult|null>(null);
   const PAGE = 10;
 
   const tribunais = React.useMemo(() => [...new Set(props.items.map((c) => clean(c.tribunal)).filter(Boolean))].sort(), [props.items]);
@@ -302,11 +351,17 @@ export function ProcessosCommandCenter(props: Props) {
         const end = parseDate(periodEnd);
         if (!ajuizamento || !end || ajuizamento > new Date(end.getTime() + 86399999)) return false;
       }
+      if (focusPreset === "urgent" && riskLabel(c) !== "Alto" && c.status !== "Vencido" && c.status !== "Caso Crítico") return false;
+      if (focusPreset === "returns" && !(c.status === "Vencido" || c.status === "É Hoje" || c.status === "Atenção" || (typeof c.diasFaltando === "number" && c.diasFaltando <= 3))) return false;
+      if (focusPreset === "djen" && !c.djen_nova_comunicacao && !djenCriticalLabel(c)) return false;
+      if (focusPreset === "updates" && !(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao)) return false;
+      if (focusPreset === "silence" && (caseSilenceDays(c) == null || (caseSilenceDays(c) as number) < 45)) return false;
+      if (focusPreset === "ba" && !c.indicio_busca_apreensao) return false;
       return true;
     });
-  }, [props.items, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, props.ownerNameByAuth]);
+  }, [props.items, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, focusPreset, props.ownerNameByAuth]);
 
-  React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, props.query, props.statusFilter]);
+  React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, focusPreset, props.query, props.statusFilter]);
   React.useEffect(() => {
     if (!rows.length) {
       setSelectedId("");
@@ -321,12 +376,38 @@ export function ProcessosCommandCenter(props: Props) {
     () => rows.find((c) => String(c.id || c.protocolo) === selectedId) || rows[0] || null,
     [rows, selectedId]
   );
+  React.useEffect(()=>setOabResult(null),[selectedId]);
 
   const loaded = props.items.length;
   const silenceCount = React.useMemo(() => props.items.filter((c) => (caseSilenceDays(c) || 0) >= 45).length, [props.items]);
   const updateCount = React.useMemo(() => props.items.filter((c) => c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao).length, [props.items]);
   const highRiskCount = React.useMemo(() => props.items.filter((c) => riskLabel(c) === "Alto").length, [props.items]);
   const noMovementCount = React.useMemo(() => props.items.filter((c) => !clean(latestMovementDate(c))).length, [props.items]);
+  const sourceCoverage = React.useMemo(()=>{
+    const total=Math.max(1,props.items.length);
+    const datajud=props.items.filter(c=>!!clean(c.datajud_consultado_em)).length;
+    const djen=props.items.filter(c=>!!clean(c.djen_consultado_em)).length;
+    const fresh=props.items.filter(c=>{
+      const f=sourceFreshness(c);
+      return f.tone==="green"||f.tone==="blue";
+    }).length;
+    const hashed=props.items.filter(c=>!!clean(c.datajud_hash)).length;
+    return {
+      datajud, djen, fresh, hashed,
+      datajudPct:Math.round(datajud/total*100),
+      djenPct:Math.round(djen/total*100),
+      freshPct:Math.round(fresh/total*100),
+      hashPct:Math.round(hashed/total*100),
+    };
+  },[props.items]);
+  const focusCounts = React.useMemo(()=>({
+    urgent:props.items.filter(c=>riskLabel(c)==="Alto"||c.status==="Vencido"||c.status==="Caso Crítico").length,
+    returns:props.items.filter(c=>c.status==="Vencido"||c.status==="É Hoje"||c.status==="Atenção"||(typeof c.diasFaltando==="number"&&c.diasFaltando<=3)).length,
+    djen:props.items.filter(c=>c.djen_nova_comunicacao||!!djenCriticalLabel(c)).length,
+    updates:props.items.filter(c=>c.tem_novo_andamento||c.tem_atualizacao_pos_retorno||c.djen_nova_comunicacao).length,
+    silence:props.items.filter(c=>(caseSilenceDays(c)||0)>=45).length,
+    ba:props.items.filter(c=>!!c.indicio_busca_apreensao).length,
+  }),[props.items]);
 
   const tribunalData = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -411,6 +492,23 @@ export function ProcessosCommandCenter(props: Props) {
     }
   }
 
+  async function validateOab(c:LegalCase){
+    const raw=clean(pick(c,"oab","oab_numero","advogado_oab"));
+    const numero=raw.replace(/\D/g,"");
+    const uf=inferOabUf(c);
+    if(!numero||!uf){
+      toast({title:"OAB",description:"Número/UF da OAB não estão completos neste processo.",variant:"destructive"});
+      return;
+    }
+    setBusy("oab");
+    try{
+      const res=await consultarOabAction(uf,numero);
+      setOabResult(res);
+      if(res.success)toast({title:"OAB validada",description:[res.nome,res.situacao].filter(Boolean).join(" · ")});
+      else toast({title:"CNA/OAB",description:res.error||"Consulta automática indisponível; use o link oficial.",variant:"destructive"});
+    }finally{setBusy("")}
+  }
+
   const timeline = selected ? miniTimeline(selected) : [];
   const selectedSilence = selected ? caseSilenceDays(selected) : null;
 
@@ -464,11 +562,37 @@ export function ProcessosCommandCenter(props: Props) {
           <KpiCard icon={<CalendarClock size={15}/>} label="Silêncio +45d" value={props.loading ? "…" : silenceCount} hint="nos processos carregados" kind="amber" />
           <KpiCard icon={<ShieldAlert size={15}/>} label="Risco alto" value={props.loading ? "…" : highRiskCount} hint={`${updateCount} com novidade`} kind="red" />
         </div>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            {icon:<Database size={12}/>,label:"Cobertura DataJud",value:sourceCoverage.datajudPct+"%",hint:sourceCoverage.datajud+" / "+loaded},
+            {icon:<Gavel size={12}/>,label:"Cobertura DJEN",value:sourceCoverage.djenPct+"%",hint:sourceCoverage.djen+" / "+loaded},
+            {icon:<Clock3 size={12}/>,label:"Fontes ≤7 dias",value:sourceCoverage.freshPct+"%",hint:sourceCoverage.fresh+" frescos"},
+            {icon:<Radar size={12}/>,label:"Snapshot / hash",value:sourceCoverage.hashPct+"%",hint:sourceCoverage.hashed+" monitoráveis"},
+          ].map(card=><div key={card.label} className="flex items-center justify-between rounded-lg border border-white/8 bg-[#081427]/75 px-3 py-2">
+            <div className="flex items-center gap-2 text-slate-500">{card.icon}<span className="text-[8px] font-bold uppercase tracking-[.08em]">{card.label}</span></div>
+            <div className="text-right"><b className="text-[11px] text-slate-200">{card.value}</b><p className="text-[7px] text-slate-600">{card.hint}</p></div>
+          </div>)}
+        </div>
       </div>
 
       <div className="grid min-h-[calc(100vh-172px)] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px]">
         <div className="min-w-0 border-r border-white/8">
           <div className="border-b border-white/8 bg-[#071120] p-3">
+            <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+              {([
+                ["all","Todos",loaded,Rows3],
+                ["urgent","Urgentes",focusCounts.urgent,ShieldAlert],
+                ["returns","Prazos/retornos",focusCounts.returns,CalendarClock],
+                ["djen","Radar DJEN",focusCounts.djen,Gavel],
+                ["updates","Novidades",focusCounts.updates,Activity],
+                ["silence","Silêncio +45d",focusCounts.silence,FileClock],
+                ["ba","B.A.",focusCounts.ba,Scale],
+              ] as const).map(([value,label,count,Icon])=>(
+                <button key={value} onClick={()=>setFocusPreset(value)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[8px] font-bold transition",focusPreset===value?"border-blue-400/35 bg-blue-500/15 text-blue-100":"border-white/8 bg-white/[.025] text-slate-500 hover:bg-white/5 hover:text-slate-200")}>
+                  <Icon size={11}/>{label}<span className="rounded bg-black/20 px-1 text-[7px] tabular-nums">{count}</span>
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
               <select value={tribunal} onChange={(e) => setTribunal(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
                 <option value="">Tribunal · todos</option>
@@ -534,8 +658,8 @@ export function ProcessosCommandCenter(props: Props) {
               <button onClick={() => props.onSortOpsChange(!props.sortOps)} className={cn("h-9 rounded-lg border px-3 text-[9px] font-bold", props.sortOps ? "border-blue-400/40 bg-blue-500/15 text-blue-200" : "border-white/10 bg-[#0b1930] text-slate-300")}>
                 <Filter size={12} className="mr-1 inline" />Prioridade ops
               </button>
-              {(props.query || props.statusFilter || tribunal || classe || assunto || municipio || grau || sistema || responsavel || novidade || risco || periodStart || periodEnd || props.baOnly || props.silencioOnly) ? (
-                <button onClick={() => { props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setResponsavel(""); setNovidade(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); }} className="h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-[9px] text-slate-400 hover:text-white">
+              {(focusPreset!=="all" || props.query || props.statusFilter || tribunal || classe || assunto || municipio || grau || sistema || responsavel || novidade || risco || periodStart || periodEnd || props.baOnly || props.silencioOnly) ? (
+                <button onClick={() => { setFocusPreset("all"); props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setResponsavel(""); setNovidade(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); }} className="h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-[9px] text-slate-400 hover:text-white">
                   <X size={12} className="mr-1 inline" />Limpar
                 </button>
               ) : null}
@@ -576,7 +700,7 @@ export function ProcessosCommandCenter(props: Props) {
                       <td className="max-w-[150px] truncate px-2 py-2 text-slate-400" title={c.orgao_julgador}>{c.orgao_julgador || "—"}</td>
                       <td className="px-2 py-2 text-slate-400">{municipio}</td>
                       <td className="px-2 py-2 text-slate-400 whitespace-nowrap">{fmtDate(ajuizamento)}</td>
-                      <td className="px-2 py-2 text-slate-400 whitespace-nowrap">{fmtDate(update)}</td>
+                      <td className="px-2 py-2 text-slate-400 whitespace-nowrap"><span>{fmtDate(update)}</span><span className={cn("ml-1 rounded border px-1 py-0.5 text-[7px]",toneBadge(sourceFreshness(c).tone))}>{sourceFreshness(c).label}</span></td>
                       <td className="max-w-[170px] truncate px-2 py-2 text-sky-300" title={latestMovement(c)}>{latestMovement(c)}</td>
                       <td className={cn("px-2 py-2 font-black tabular-nums", (silence || 0) >= 45 ? "text-red-300" : "text-slate-300")}>{silence ?? "—"}</td>
                       <td className="px-2 py-2"><span className={cn("rounded-full border px-1.5 py-1 text-[8px] font-bold", statusColor(String(c.status)))}>{c.status || "—"}</span></td>
@@ -654,6 +778,9 @@ export function ProcessosCommandCenter(props: Props) {
                   <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold", statusColor(String(selected.status)))}>{selected.status}</span>
                   <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold", statusColor(riskLabel(selected)))}>Risco {riskLabel(selected)}</span>
                   {selectedSilence != null ? <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[8px] text-amber-200">{selectedSilence}d sem movimento</span> : null}
+                  <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold",toneBadge(returnState(selected).tone))}>{returnState(selected).label}</span>
+                  <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold",toneBadge(sourceFreshness(selected).tone))}>Fonte {sourceFreshness(selected).label}</span>
+                  {selected.datajud_hash?<span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[8px] font-bold text-cyan-200">Snapshot ativo</span>:null}
                 </div>
               </div>
 
@@ -688,6 +815,12 @@ export function ProcessosCommandCenter(props: Props) {
                     <button onClick={() => props.onAttend(selected)} className="w-full rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-left text-[9px] font-bold text-cyan-200 hover:bg-cyan-500/15">Registrar atendimento / próximo retorno</button>
                     <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[9px] font-bold text-violet-200 hover:bg-violet-500/15">Abrir publicação DJEN</button>
                   </Panel>
+                  <Panel title="Monitor de fontes">
+                    <Info label="DataJud" value={selected.datajud_consultado_em?fmtDate(selected.datajud_consultado_em,true):"não consultado"}/>
+                    <Info label="DJEN" value={selected.djen_consultado_em?fmtDate(selected.djen_consultado_em,true):"não consultado"}/>
+                    <Info label="Snapshot" value={selected.datajud_hash?"hash registrado":"sem snapshot"}/>
+                    <Info label="Mudança pós-retorno" value={selected.tem_atualizacao_pos_retorno?"SIM":"não sinalizada"}/>
+                  </Panel>
                 </div>
               ) : null}
 
@@ -718,9 +851,18 @@ export function ProcessosCommandCenter(props: Props) {
                     <Info label="OAB" value={pick(selected,"oab","oab_numero","advogado_oab")}/>
                   </Panel>
                   {pick(selected,"oab","oab_numero","advogado_oab") ? (
-                    <a href={`https://cna.oab.org.br/?nroOab=${encodeURIComponent(clean(pick(selected,"oab","oab_numero","advogado_oab")).replace(/\D/g,""))}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-[9px] font-bold text-slate-300 hover:bg-white/10">
-                      <UserRoundSearch size={12}/>Validar no CNA/OAB
-                    </a>
+                    <div className="space-y-2">
+                      <button disabled={busy==="oab"} onClick={()=>void validateOab(selected)} className="flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-500/8 px-2 py-2 text-[9px] font-bold text-emerald-200 hover:bg-emerald-500/12">
+                        {busy==="oab"?<Loader2 size={12} className="animate-spin"/>:<ShieldCheck size={12}/>}Validar OAB no CNA
+                      </button>
+                      {oabResult?<div className={cn("rounded-lg border p-2 text-[8px]",oabResult.success?"border-emerald-400/20 bg-emerald-500/8 text-emerald-100":"border-amber-400/20 bg-amber-500/8 text-amber-100")}>
+                        <b>{oabResult.success?"OAB localizada":"Validação automática indisponível"}</b>
+                        {oabResult.nome?<p className="mt-1">{oabResult.nome}</p>:null}
+                        {oabResult.situacao?<p>{oabResult.situacao}</p>:null}
+                        {oabResult.error?<p className="mt-1 text-amber-200/80">{oabResult.error}</p>:null}
+                        <a href={oabResult.consultaUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 underline"><ExternalLink size={9}/>abrir consulta oficial</a>
+                      </div>:null}
+                    </div>
                   ) : null}
                 </div>
               ) : null}
@@ -739,12 +881,21 @@ export function ProcessosCommandCenter(props: Props) {
                     <Info label="DJEN consultado" value={fmtDate(selected.djen_consultado_em,true)}/>
                     <Info label="Publicações DJEN" value={String(selected.djen_count || 0)}/>
                     <Info label="Sistema processual" value={pick(selected,"sistema_nome","sistema")}/>
+                    <Info label="Frescor combinado" value={sourceFreshness(selected).label}/>
+                    <Info label="Snapshot DataJud" value={selected.datajud_hash?"disponível":"não disponível"}/>
                   </Panel>
                 </div>
               ) : null}
 
               {tab === "ai" ? (
                 <div className="space-y-2">
+                  <Panel title="Radar operacional">
+                    <Info label="Urgência" value={riskLabel(selected)}/>
+                    <Info label="Prazo/retorno" value={returnState(selected).label}/>
+                    <Info label="Silêncio tribunal" value={selectedSilence==null?"sem dado":selectedSilence+" dias"}/>
+                    <Info label="Radar DJEN" value={djenCriticalLabel(selected)||"sem termo crítico"}/>
+                    <Info label="Fonte" value={sourceFreshness(selected).label}/>
+                  </Panel>
                   <Panel title="Análise inteligente">
                     {selected.parecerIA ? <p className="text-[9px] leading-relaxed text-slate-300">{selected.parecerIA}</p> : (
                       <div className="space-y-2 text-[9px] leading-relaxed text-slate-400">
