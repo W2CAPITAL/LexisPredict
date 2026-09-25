@@ -187,3 +187,73 @@ Tabs:
 - Não misturar dono (`created_by`) com atendente (`atendido_por`).
 - Não remover `empresa_id` das consultas.
 - DataJud não fornece documentos/petições completos; a UI não deve sugerir o contrário.
+
+
+## Evolução v2 — Command Center de análise extrema
+
+Implementado na rota `/processos`:
+
+- **Presets rápidos de análise:** Todos, Urgentes, Prazos/retornos, Radar DJEN, Novidades, Silêncio +45d e B.A.;
+- **Cobertura das fontes:** DataJud, DJEN, frescor combinado e disponibilidade de snapshot/hash;
+- **Frescor por processo:** cada linha mostra se a fonte está atualizada, recente, envelhecida ou não consultada;
+- **Snapshot monitorável:** processos com `datajud_hash` ficam identificados para comparação de mudança;
+- **OAB dentro do inspector:** consulta CNA pela server action existente, com cache curto de sucessos para reduzir chamadas repetidas e fallback para o portal oficial;
+- **Aba Prazos:** separa explicitamente retorno operacional de prazo judicial, evitando converter publicação em prazo fatal sem evidência;
+- **Radar operacional:** urgência, status do retorno, silêncio, termos críticos DJEN e frescor da fonte aparecem juntos;
+- **Inspector de seis abas:** Visão, Movimentos, Prazos, Partes, Docs e IA;
+- **Exportação analítica:** CSV da visão filtrada continua compatível com Excel/Power BI/Tableau;
+- **Escopo comercial corrigido:** Administrador permanece no próprio escopo; visão consolidada da empresa é Supervisor/Superadmin.
+
+### Reuso seguro dos novos repositórios avaliados
+
+#### sobeitnow0/extensao-djen-advogado
+Reuso:
+- conceito de radar por palavras sensíveis;
+- organização de prazo/tarefa por publicação;
+- foco em leitura operacional de intimação.
+
+Não reuso:
+- storage da extensão e gamificação.
+
+#### jespimentel/crawler_sg
+Reuso:
+- conceito de comparação/snapshot para perceber mudança;
+- descoberta por parte/OAB como referência de busca.
+
+Não reuso:
+- scraping eSAJ por seletor HTML como fonte primária, pois é frágil e quebra quando o portal muda.
+
+#### PietroTamanini/API-consulta-OAB
+Reuso:
+- validação por CNA/OAB;
+- cache de sucesso para reduzir chamadas repetidas.
+
+Não reuso:
+- Playwright/reCAPTCHA/MySQL local ou qualquer tentativa de contornar mecanismo anti-bot.
+
+#### RafaFreitasDev/processos-pje
+Reuso:
+- PJe como dimensão analítica/sistema processual;
+- ideia de descoberta por OAB.
+
+Não reuso:
+- Chrome/Python local ou automação dependente da máquina do usuário.
+
+#### DeHor-Labs/mcp-juridico-brasil
+Reuso:
+- separação entre busca, movimentos, monitoramento/snapshot e prazo;
+- cobertura DataJud como fonte primária;
+- distinção entre monitoramento e cálculo de prazo.
+
+Não reuso:
+- servidor MCP Python dentro do app web; a arquitetura do LexisPredict continua Next.js/TypeScript.
+
+### Regra de proveniência
+
+A tela nunca deve apresentar como equivalentes:
+- **DataJud/DJEN:** fontes públicas oficiais;
+- **banco da empresa:** operação, atendimento, dono e próximo retorno;
+- **snapshot/hash:** evidência de mudança entre consultas;
+- **crawler externo:** apoio eventual de descoberta, nunca fonte oficial;
+- **IA:** análise/triagem, nunca substituto da fonte processual.
+
