@@ -163,11 +163,24 @@ function caseSilenceDays(c: LegalCase) {
   return daysSince(latestMovementDate(c));
 }
 
+function djenCriticalLabel(c: LegalCase) {
+  const text = clean(c.djen_ultimo_resumo || c.evento_resumo).toUpperCase();
+  if (!text) return "";
+  if (/PENHORA|BLOQUEIO|SISBAJUD|RENAJUD/.test(text)) return "Penhora / bloqueio";
+  if (/LIMINAR|TUTELA DE URG[EÊ]NCIA|ANTECIPA[CÇ][AÃ]O/.test(text)) return "Liminar / tutela";
+  if (/AUDI[EÊ]NCIA/.test(text)) return "Audiência";
+  if (/INTIMA[CÇ][AÃ]O|INTIMADO|PRAZO/.test(text)) return "Intimação / prazo";
+  if (/SENTEN[CÇ]A|JULGO|PROCEDENTE|IMPROCEDENTE/.test(text)) return "Sentença / mérito";
+  if (/TR[AÂ]NSITO|BAIXA DEFINITIVA|ARQUIVAMENTO|EXTIN[CÇ][AÃ]O/.test(text)) return "Trânsito / baixa";
+  return "";
+}
+
 function urgencyScore(c: LegalCase) {
   let score = 0;
   if (/vencido|caso crítico/i.test(String(c.status))) score += 80;
   if (c.risco === "Crítico") score += 50;
   if (c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao) score += 35;
+  if (djenCriticalLabel(c)) score += 25;
   const silence = caseSilenceDays(c);
   if (silence != null) score += Math.min(60, Math.max(0, silence - 30));
   if (c.diasFaltando != null && c.diasFaltando <= 3) score += 35;
@@ -243,12 +256,22 @@ export function ProcessosCommandCenter(props: Props) {
   const [tribunal, setTribunal] = React.useState("");
   const [classe, setClasse] = React.useState("");
   const [risco, setRisco] = React.useState("");
+  const [assunto, setAssunto] = React.useState("");
+  const [municipio, setMunicipio] = React.useState("");
+  const [grau, setGrau] = React.useState("");
+  const [sistema, setSistema] = React.useState("");
+  const [periodStart, setPeriodStart] = React.useState("");
+  const [periodEnd, setPeriodEnd] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [busy, setBusy] = React.useState<"" | "djen" | "dossie">("");
   const PAGE = 10;
 
   const tribunais = React.useMemo(() => [...new Set(props.items.map((c) => clean(c.tribunal)).filter(Boolean))].sort(), [props.items]);
   const classes = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "classe_acao", "classeProcessual_nome", "classe"))).filter(Boolean))].sort().slice(0, 80), [props.items]);
+  const assuntos = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "assunto_nome", "assunto", "tipo"))).filter(Boolean))].sort().slice(0, 80), [props.items]);
+  const municipios = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "orgaoJulgador_municipio", "municipio", "cidade"))).filter(Boolean))].sort().slice(0, 80), [props.items]);
+  const graus = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "grau", "grau_nome", "instancia"))).filter(Boolean))].sort(), [props.items]);
+  const sistemas = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "sistema_nome", "sistema"))).filter(Boolean))].sort(), [props.items]);
 
   const rows = React.useMemo(() => {
     return props.items.filter((c) => {
@@ -256,11 +279,24 @@ export function ProcessosCommandCenter(props: Props) {
       const cl = clean(pick(c, "classe_acao", "classeProcessual_nome", "classe"));
       if (classe && cl !== classe) return false;
       if (risco && riskLabel(c) !== risco) return false;
+      if (assunto && clean(pick(c, "assunto_nome", "assunto", "tipo")) !== assunto) return false;
+      if (municipio && clean(pick(c, "orgaoJulgador_municipio", "municipio", "cidade")) !== municipio) return false;
+      if (grau && clean(pick(c, "grau", "grau_nome", "instancia")) !== grau) return false;
+      if (sistema && clean(pick(c, "sistema_nome", "sistema")) !== sistema) return false;
+      const ajuizamento = parseDate(pick(c, "dataDistribuicao", "dataAjuizamento", "data_ajuizamento"));
+      if (periodStart) {
+        const start = parseDate(periodStart);
+        if (!ajuizamento || !start || ajuizamento < start) return false;
+      }
+      if (periodEnd) {
+        const end = parseDate(periodEnd);
+        if (!ajuizamento || !end || ajuizamento > new Date(end.getTime() + 86399999)) return false;
+      }
       return true;
     });
-  }, [props.items, tribunal, classe, risco]);
+  }, [props.items, tribunal, classe, risco, assunto, municipio, grau, sistema, periodStart, periodEnd]);
 
-  React.useEffect(() => setPage(1), [tribunal, classe, risco, props.query, props.statusFilter]);
+  React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, periodStart, periodEnd, props.query, props.statusFilter]);
   React.useEffect(() => {
     if (!rows.length) {
       setSelectedId("");
@@ -390,8 +426,17 @@ export function ProcessosCommandCenter(props: Props) {
                 {busy === "djen" ? <Loader2 size={12} className="mr-1.5 animate-spin" /> : <FileClock size={12} className="mr-1.5" />}DJEN
               </Button>
             ) : null}
+            <Button onClick={() => void props.onRefresh()} variant="outline" size="sm" className="h-8 border-white/15 bg-white/5 px-2 text-[9px] text-slate-200 hover:bg-white/10" title="Recarregar carteira">
+              <RefreshCcw size={12} />
+            </Button>
             <Button onClick={props.onExportCsv} variant="outline" size="sm" className="h-8 border-white/15 bg-white/5 text-[9px] text-slate-200 hover:bg-white/10">
               <Download size={12} className="mr-1.5" />Exportar CSV
+            </Button>
+            <Button onClick={props.onExportCsv} variant="outline" size="sm" title="CSV pronto para importação no Power BI" className="h-8 border-amber-400/20 bg-amber-500/8 text-[9px] text-amber-200 hover:bg-amber-500/15">
+              Power BI
+            </Button>
+            <Button onClick={props.onExportCsv} variant="outline" size="sm" title="CSV pronto para importação no Tableau" className="h-8 border-orange-400/20 bg-orange-500/8 text-[9px] text-orange-200 hover:bg-orange-500/15">
+              Tableau
             </Button>
             <Button asChild size="sm" className="h-8 bg-violet-600 text-[9px] font-bold hover:bg-violet-500">
               <Link href={selected ? `/report?processo=${encodeURIComponent(selected.protocolo)}` : "/report"}>
@@ -416,21 +461,43 @@ export function ProcessosCommandCenter(props: Props) {
           <div className="border-b border-white/8 bg-[#071120] p-3">
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
               <select value={tribunal} onChange={(e) => setTribunal(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
-                <option value="">Todos os tribunais</option>
+                <option value="">Tribunal · todos</option>
                 {tribunais.map((x) => <option key={x}>{x}</option>)}
               </select>
               <select value={classe} onChange={(e) => setClasse(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
-                <option value="">Todas as classes</option>
+                <option value="">Classe · todas</option>
                 {classes.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
+              <select value={assunto} onChange={(e) => setAssunto(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
+                <option value="">Assunto · todos</option>
+                {assuntos.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+              <select value={municipio} onChange={(e) => setMunicipio(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
+                <option value="">Município · todos</option>
+                {municipios.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+              <select value={grau} onChange={(e) => setGrau(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
+                <option value="">Grau · todos</option>
+                {graus.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+              <select value={sistema} onChange={(e) => setSistema(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
+                <option value="">Sistema · todos</option>
+                {sistemas.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
               <select value={props.statusFilter} onChange={(e) => props.onStatusFilterChange(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
-                <option value="">Todas as situações</option>
+                <option value="">Situação · todas</option>
                 {[...new Set(props.items.map((c) => clean(c.status)).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
               </select>
               <select value={risco} onChange={(e) => setRisco(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
-                <option value="">Todos os riscos</option>
+                <option value="">Risco · todos</option>
                 <option>Alto</option><option>Médio</option><option>Baixo</option>
               </select>
+              <label className="flex h-9 items-center gap-1 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[8px] text-slate-500">
+                De <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[8px] text-slate-300 outline-none"/>
+              </label>
+              <label className="flex h-9 items-center gap-1 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[8px] text-slate-500">
+                Até <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[8px] text-slate-300 outline-none"/>
+              </label>
               <button onClick={() => props.onBaOnlyChange(!props.baOnly)} className={cn("h-9 rounded-lg border px-2 text-[9px] font-bold", props.baOnly ? "border-red-400/40 bg-red-500/15 text-red-200" : "border-white/10 bg-[#0b1930] text-slate-300")}>
                 B.A. real
               </button>
@@ -446,8 +513,8 @@ export function ProcessosCommandCenter(props: Props) {
               <button onClick={() => props.onSortOpsChange(!props.sortOps)} className={cn("h-9 rounded-lg border px-3 text-[9px] font-bold", props.sortOps ? "border-blue-400/40 bg-blue-500/15 text-blue-200" : "border-white/10 bg-[#0b1930] text-slate-300")}>
                 <Filter size={12} className="mr-1 inline" />Prioridade ops
               </button>
-              {(props.query || props.statusFilter || tribunal || classe || risco || props.baOnly || props.silencioOnly) ? (
-                <button onClick={() => { props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setRisco(""); }} className="h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-[9px] text-slate-400 hover:text-white">
+              {(props.query || props.statusFilter || tribunal || classe || assunto || municipio || grau || sistema || risco || periodStart || periodEnd || props.baOnly || props.silencioOnly) ? (
+                <button onClick={() => { props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); }} className="h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-[9px] text-slate-400 hover:text-white">
                   <X size={12} className="mr-1 inline" />Limpar
                 </button>
               ) : null}
@@ -592,6 +659,7 @@ export function ProcessosCommandCenter(props: Props) {
                     {selected.status === "Vencido" ? <AlertLine icon={<CircleAlert size={12}/>} text="Prazo/retorno vencido"/> : null}
                     {(selectedSilence || 0) >= 45 ? <AlertLine icon={<FileClock size={12}/>} text={`Sem movimentação há ${selectedSilence} dias`}/> : null}
                     {selected.djen_nova_comunicacao ? <AlertLine icon={<Gavel size={12}/>} text="Nova publicação DJEN não tratada"/> : null}
+                    {djenCriticalLabel(selected) ? <AlertLine icon={<ShieldAlert size={12}/>} text={`Radar DJEN: ${djenCriticalLabel(selected)}`}/> : null}
                     {selected.tem_atualizacao_pos_retorno ? <AlertLine icon={<History size={12}/>} text="Tribunal atualizou após o último retorno"/> : null}
                     {riskLabel(selected)==="Baixo" && !selected.djen_nova_comunicacao && !(selectedSilence && selectedSilence>=45) ? <p className="text-[9px] text-emerald-300">Nenhum alerta crítico calculado.</p> : null}
                   </Panel>
