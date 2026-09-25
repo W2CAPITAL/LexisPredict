@@ -822,13 +822,44 @@ export function ProcessosCommandCenter(props: Props) {
                     {riskLabel(selected)==="Baixo" && !selected.djen_nova_comunicacao && !(selectedSilence && selectedSilence>=45) ? <p className="text-[9px] text-emerald-300">Nenhum alerta crítico calculado.</p> : null}
                   </Panel>
                   <Panel title="Próximos passos">
-                    <button onClick={() => props.onAttend(selected)} className="w-full rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-left text-[9px] font-bold text-cyan-200 hover:bg-cyan-500/15">Registrar atendimento / próximo retorno</button>
+                    {selectedTask ? (
+                      <div className="mb-2 rounded-lg border border-blue-400/15 bg-blue-500/8 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <b className="text-[9px] text-blue-100">{selectedTask.titulo}</b>
+                          <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[7px] font-bold text-blue-200">{selectedTask.faixa}</span>
+                        </div>
+                        <p className="mt-1 text-[8px] leading-relaxed text-slate-400">{selectedTask.detalhe}</p>
+                      </div>
+                    ) : null}
+                    <div className="space-y-1.5">
+                      {selectedActions.slice(0,3).map((action,index)=>(
+                        <div key={action.title+index} className={cn("rounded-lg border px-2 py-2", action.tone==="red"?"border-red-400/15 bg-red-500/8":action.tone==="amber"?"border-amber-400/15 bg-amber-500/8":action.tone==="green"?"border-emerald-400/15 bg-emerald-500/8":"border-white/8 bg-white/[.025]")}>
+                          <p className="text-[8px] font-bold text-slate-200">{action.title}</p>
+                          <p className="mt-0.5 text-[7px] leading-relaxed text-slate-500">{action.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => props.onAttend(selected)} className="mt-2 w-full rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-left text-[9px] font-bold text-cyan-200 hover:bg-cyan-500/15">Registrar atendimento / próximo retorno</button>
                     <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[9px] font-bold text-violet-200 hover:bg-violet-500/15">Abrir publicação DJEN</button>
+                    <Link href={"/tarefas?processo="+encodeURIComponent(selected.protocolo)} className="mt-1 block rounded-lg border border-blue-400/20 bg-blue-500/8 px-2 py-2 text-[9px] font-bold text-blue-200 hover:bg-blue-500/15">Abrir fila de tarefas</Link>
                   </Panel>
                   <Panel title="Monitor de fontes">
-                    <Info label="DataJud" value={selected.datajud_consultado_em?fmtDate(selected.datajud_consultado_em,true):"não consultado"}/>
-                    <Info label="DJEN" value={selected.djen_consultado_em?fmtDate(selected.djen_consultado_em,true):"não consultado"}/>
-                    <Info label="Snapshot" value={selected.datajud_hash?"hash registrado":"sem snapshot"}/>
+                    <div className="mb-2 flex items-center justify-between rounded-lg border border-blue-400/15 bg-blue-500/8 px-2 py-2">
+                      <span className="text-[8px] font-bold text-blue-100">Cobertura operacional</span>
+                      <b className="text-[12px] text-white">{selectedCoverage}%</b>
+                    </div>
+                    {selectedSources.map((source)=>(
+                      <div key={source.id} className="flex items-start justify-between gap-2 border-b border-white/[.055] py-1.5 last:border-0">
+                        <div>
+                          <p className="text-[8px] font-semibold text-slate-300">{source.label}</p>
+                          <p className="text-[7px] text-slate-600">{source.category}</p>
+                        </div>
+                        <div className="max-w-[160px] text-right">
+                          <span className={cn("rounded border px-1.5 py-0.5 text-[7px] font-bold",source.available?(source.fresh===false?"border-amber-400/20 bg-amber-500/8 text-amber-200":"border-emerald-400/20 bg-emerald-500/8 text-emerald-200"):"border-red-400/20 bg-red-500/8 text-red-200")}>{source.available?(source.fresh===false?"envelhecida":"disponível"):"ausente"}</span>
+                          <p className="mt-1 text-[7px] leading-relaxed text-slate-500">{source.detail}</p>
+                        </div>
+                      </div>
+                    ))}
                     <Info label="Mudança pós-retorno" value={selected.tem_atualizacao_pos_retorno?"SIM":"não sinalizada"}/>
                   </Panel>
                 </div>
