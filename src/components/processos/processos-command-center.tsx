@@ -84,7 +84,7 @@ type Props = {
   scannerLabel?: string;
 };
 
-type DetailTab = "overview" | "movements" | "parties" | "documents" | "ai";
+type DetailTab = "overview" | "movements" | "deadlines" | "parties" | "documents" | "ai";
 type FocusPreset = "all" | "urgent" | "returns" | "djen" | "updates" | "silence" | "ba";
 
 const COLORS = ["#4f7cff", "#7c5cff", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#94a3b8"];
@@ -784,9 +784,9 @@ export function ProcessosCommandCenter(props: Props) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-5 rounded-xl border border-white/8 bg-[#0a1729] p-1">
+              <div className="grid grid-cols-6 rounded-xl border border-white/8 bg-[#0a1729] p-1">
                 {([
-                  ["overview","Visão"],["movements","Mov."],["parties","Partes"],["documents","Docs"],["ai","IA"]
+                  ["overview","Visão"],["movements","Mov."],["deadlines","Prazos"],["parties","Partes"],["documents","Docs"],["ai","IA"]
                 ] as [DetailTab,string][]).map(([value,label])=>(
                   <button key={value} onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[8px] font-bold", tab===value?"bg-blue-600 text-white":"text-slate-500 hover:text-slate-200")}>{label}</button>
                 ))}
@@ -838,6 +838,27 @@ export function ProcessosCommandCenter(props: Props) {
                     </div>
                   )) : <p className="text-[9px] text-slate-500">Sem timeline em cache. Rode DataJud + DJEN.</p>}
                 </Panel>
+              ) : null}
+
+              {tab === "deadlines" ? (
+                <div className="space-y-2">
+                  <Panel title="Prazos e retornos">
+                    <Info label="Próximo retorno operacional" value={fmtDate(selected.proximoPrazo)}/>
+                    <Info label="Status do retorno" value={returnState(selected).label}/>
+                    <Info label="Dias faltando" value={selected.diasFaltando==null?"sem data calculável":String(selected.diasFaltando)}/>
+                    <Info label="Último retorno ao cliente" value={fmtDate(selected.ultimoRetorno)}/>
+                    <Info label="Alerta DJEN" value={djenCriticalLabel(selected)||"sem termo crítico"}/>
+                  </Panel>
+                  <div className="rounded-xl border border-amber-400/15 bg-amber-500/8 p-3 text-[8px] leading-relaxed text-amber-100/80">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-200"><Clock3 size={11}/>Separação de conceitos</div>
+                    <p className="mt-1">“Próximo retorno” é compromisso operacional da carteira. Um prazo judicial só deve ser tratado como tal quando vier de fonte/documento que sustente a data. O painel não transforma automaticamente publicação em prazo fatal.</p>
+                  </div>
+                  <Panel title="Ações">
+                    <button onClick={() => props.onAttend(selected)} className="w-full rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-left text-[9px] font-bold text-cyan-200 hover:bg-cyan-500/15">Registrar atendimento / reagendar retorno</button>
+                    <Link href={`/agenda?processo=${encodeURIComponent(selected.protocolo)}`} className="mt-1 block rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-2 text-[9px] font-bold text-blue-200 hover:bg-blue-500/15">Abrir na agenda</Link>
+                    <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[9px] font-bold text-violet-200 hover:bg-violet-500/15">Revisar última publicação DJEN</button>
+                  </Panel>
+                </div>
               ) : null}
 
               {tab === "parties" ? (
