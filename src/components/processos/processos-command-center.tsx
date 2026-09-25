@@ -945,6 +945,19 @@ export function ProcessosCommandCenter(props: Props) {
                     <Info label="Sistema processual" value={pick(selected,"sistema_nome","sistema")}/>
                     <Info label="Frescor combinado" value={sourceFreshness(selected).label}/>
                     <Info label="Snapshot DataJud" value={selected.datajud_hash?"disponível":"não disponível"}/>
+                    <Info label="Cobertura operacional" value={selectedCoverage+"%"}/>
+                  </Panel>
+                  <Panel title="Matriz de proveniência">
+                    {selectedSources.map((source)=>(
+                      <div key={source.id} className="mb-1 rounded-lg border border-white/8 bg-white/[.02] px-2 py-2 last:mb-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <b className="text-[8px] text-slate-200">{source.label}</b>
+                          <span className={cn("text-[7px] font-bold",source.available?"text-emerald-300":"text-red-300")}>{source.available?"OK":"LACUNA"}</span>
+                        </div>
+                        <p className="mt-1 text-[7px] text-slate-500">{source.category} · {source.detail}</p>
+                      </div>
+                    ))}
+                    <p className="mt-2 text-[7px] leading-relaxed text-slate-600">DataJud/DJEN são fontes públicas oficiais; carteira/atendimento são dados operacionais internos; snapshot/hash apenas evidencia mudança entre consultas.</p>
                   </Panel>
                 </div>
               ) : null}
