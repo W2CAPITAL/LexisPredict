@@ -72,7 +72,7 @@ type Props = {
   canScan?: boolean;
   onEdit: (item: LegalCase) => void;
   onAttend: (item: LegalCase) => void;
-  onExportCsv: () => void;
+  onExportCsv: (items?: LegalCase[]) => void;
   ownerNameByAuth?: Map<string, string>;
   scannerLabel?: string;
 };
@@ -262,6 +262,8 @@ export function ProcessosCommandCenter(props: Props) {
   const [sistema, setSistema] = React.useState("");
   const [periodStart, setPeriodStart] = React.useState("");
   const [periodEnd, setPeriodEnd] = React.useState("");
+  const [responsavel, setResponsavel] = React.useState("");
+  const [novidade, setNovidade] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [busy, setBusy] = React.useState<"" | "djen" | "dossie">("");
   const PAGE = 10;
@@ -272,6 +274,7 @@ export function ProcessosCommandCenter(props: Props) {
   const municipios = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "orgaoJulgador_municipio", "municipio", "cidade"))).filter(Boolean))].sort().slice(0, 80), [props.items]);
   const graus = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "grau", "grau_nome", "instancia"))).filter(Boolean))].sort(), [props.items]);
   const sistemas = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "sistema_nome", "sistema"))).filter(Boolean))].sort(), [props.items]);
+  const responsaveis = React.useMemo(() => [...new Set(props.items.map((c) => ownerName(c, props.ownerNameByAuth)).filter((x) => x && x !== "—"))].sort(), [props.items, props.ownerNameByAuth]);
 
   const rows = React.useMemo(() => {
     return props.items.filter((c) => {
@@ -283,6 +286,13 @@ export function ProcessosCommandCenter(props: Props) {
       if (municipio && clean(pick(c, "orgaoJulgador_municipio", "municipio", "cidade")) !== municipio) return false;
       if (grau && clean(pick(c, "grau", "grau_nome", "instancia")) !== grau) return false;
       if (sistema && clean(pick(c, "sistema_nome", "sistema")) !== sistema) return false;
+      if (responsavel && ownerName(c, props.ownerNameByAuth) !== responsavel) return false;
+      if (novidade === "qualquer" || !novidade) {
+        // sem filtro
+      } else if (novidade === "novidade" && !(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao)) return false;
+      else if (novidade === "djen" && !c.djen_nova_comunicacao) return false;
+      else if (novidade === "datajud" && !c.tem_atualizacao_pos_retorno) return false;
+      else if (novidade === "sem" && (c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao)) return false;
       const ajuizamento = parseDate(pick(c, "dataDistribuicao", "dataAjuizamento", "data_ajuizamento"));
       if (periodStart) {
         const start = parseDate(periodStart);
@@ -294,9 +304,9 @@ export function ProcessosCommandCenter(props: Props) {
       }
       return true;
     });
-  }, [props.items, tribunal, classe, risco, assunto, municipio, grau, sistema, periodStart, periodEnd]);
+  }, [props.items, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, props.ownerNameByAuth]);
 
-  React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, periodStart, periodEnd, props.query, props.statusFilter]);
+  React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, props.query, props.statusFilter]);
   React.useEffect(() => {
     if (!rows.length) {
       setSelectedId("");
@@ -429,13 +439,13 @@ export function ProcessosCommandCenter(props: Props) {
             <Button onClick={() => void props.onRefresh()} variant="outline" size="sm" className="h-8 border-white/15 bg-white/5 px-2 text-[9px] text-slate-200 hover:bg-white/10" title="Recarregar carteira">
               <RefreshCcw size={12} />
             </Button>
-            <Button onClick={props.onExportCsv} variant="outline" size="sm" className="h-8 border-white/15 bg-white/5 text-[9px] text-slate-200 hover:bg-white/10">
+            <Button onClick={() => props.onExportCsv(rows)} variant="outline" size="sm" className="h-8 border-white/15 bg-white/5 text-[9px] text-slate-200 hover:bg-white/10">
               <Download size={12} className="mr-1.5" />Exportar CSV
             </Button>
-            <Button onClick={props.onExportCsv} variant="outline" size="sm" title="CSV pronto para importação no Power BI" className="h-8 border-amber-400/20 bg-amber-500/8 text-[9px] text-amber-200 hover:bg-amber-500/15">
+            <Button onClick={() => props.onExportCsv(rows)} variant="outline" size="sm" title="CSV pronto para importação no Power BI" className="h-8 border-amber-400/20 bg-amber-500/8 text-[9px] text-amber-200 hover:bg-amber-500/15">
               Power BI
             </Button>
-            <Button onClick={props.onExportCsv} variant="outline" size="sm" title="CSV pronto para importação no Tableau" className="h-8 border-orange-400/20 bg-orange-500/8 text-[9px] text-orange-200 hover:bg-orange-500/15">
+            <Button onClick={() => props.onExportCsv(rows)} variant="outline" size="sm" title="CSV pronto para importação no Tableau" className="h-8 border-orange-400/20 bg-orange-500/8 text-[9px] text-orange-200 hover:bg-orange-500/15">
               Tableau
             </Button>
             <Button asChild size="sm" className="h-8 bg-violet-600 text-[9px] font-bold hover:bg-violet-500">
@@ -484,6 +494,17 @@ export function ProcessosCommandCenter(props: Props) {
                 <option value="">Sistema · todos</option>
                 {sistemas.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
+              <select value={responsavel} onChange={(e) => setResponsavel(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
+                <option value="">Responsável · todos</option>
+                {responsaveis.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+              <select value={novidade} onChange={(e) => setNovidade(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
+                <option value="">Novidade · qualquer</option>
+                <option value="novidade">Com novidade</option>
+                <option value="datajud">DataJud após retorno</option>
+                <option value="djen">Nova publicação DJEN</option>
+                <option value="sem">Sem novidade</option>
+              </select>
               <select value={props.statusFilter} onChange={(e) => props.onStatusFilterChange(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-[#0b1930] px-2 text-[9px] text-slate-200">
                 <option value="">Situação · todas</option>
                 {[...new Set(props.items.map((c) => clean(c.status)).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
@@ -513,8 +534,8 @@ export function ProcessosCommandCenter(props: Props) {
               <button onClick={() => props.onSortOpsChange(!props.sortOps)} className={cn("h-9 rounded-lg border px-3 text-[9px] font-bold", props.sortOps ? "border-blue-400/40 bg-blue-500/15 text-blue-200" : "border-white/10 bg-[#0b1930] text-slate-300")}>
                 <Filter size={12} className="mr-1 inline" />Prioridade ops
               </button>
-              {(props.query || props.statusFilter || tribunal || classe || assunto || municipio || grau || sistema || risco || periodStart || periodEnd || props.baOnly || props.silencioOnly) ? (
-                <button onClick={() => { props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); }} className="h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-[9px] text-slate-400 hover:text-white">
+              {(props.query || props.statusFilter || tribunal || classe || assunto || municipio || grau || sistema || responsavel || novidade || risco || periodStart || periodEnd || props.baOnly || props.silencioOnly) ? (
+                <button onClick={() => { props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setResponsavel(""); setNovidade(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); }} className="h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-[9px] text-slate-400 hover:text-white">
                   <X size={12} className="mr-1 inline" />Limpar
                 </button>
               ) : null}
