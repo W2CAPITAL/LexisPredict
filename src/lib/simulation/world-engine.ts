@@ -19,6 +19,15 @@ export type WorldTile = {
   walkable: boolean;
 };
 
+export type WorldEdit = {
+  x: number;
+  z: number;
+  biome?: WorldBiome;
+  resource?: WorldResource;
+  walkable?: boolean;
+  height?: number;
+};
+
 export type WorldChunk = {
   seed: number;
   chunkX: number;
@@ -45,6 +54,7 @@ export type WorldSimulationInput = {
   ticks?: number;
   agents?: number;
   goals?: WorldAgentGoal[];
+  edits?: WorldEdit[];
 };
 
 export type WorldSimulationResult = {
@@ -161,7 +171,8 @@ export function generateWorldChunk(
   seedInput: string | number | undefined,
   chunkX: number,
   chunkZ: number,
-  size = 16
+  size = 16,
+  edits: WorldEdit[] = []
 ): WorldChunk {
   const safeSize = Math.max(4, Math.min(32, Math.floor(size || 16)));
   const seed = seedHash(seedInput);
@@ -175,12 +186,25 @@ export function generateWorldChunk(
     }
   }
 
+  const editMap = new Map(edits.map((edit) => [edit.x + ':' + edit.z, edit]));
+  const merged = tiles.map((tile) => {
+    const edit = editMap.get(tile.x + ':' + tile.z);
+    if (!edit) return tile;
+    return {
+      ...tile,
+      ...(edit.biome ? { biome: edit.biome } : {}),
+      ...(edit.resource !== undefined ? { resource: edit.resource } : {}),
+      ...(typeof edit.walkable === 'boolean' ? { walkable: edit.walkable } : {}),
+      ...(Number.isFinite(edit.height) ? { height: Number(edit.height) } : {}),
+    };
+  });
+
   return {
     seed,
     chunkX: Math.floor(chunkX),
     chunkZ: Math.floor(chunkZ),
     size: safeSize,
-    tiles,
+    tiles: merged,
   };
 }
 
@@ -244,6 +268,20 @@ export function simulateWorld(input: WorldSimulationInput): WorldSimulationResul
   const count = Math.max(1, Math.min(64, Math.floor(Number(input.agents) || 6)));
   const goals = input.goals?.length ? input.goals : (['explore', 'gather', 'build'] as WorldAgentGoal[]);
 
+  const editMap = new Map((input.edits || []).map((edit) => [edit.x + ':' + edit.z, edit]));
+  const tileAt = (x: number, z: number): WorldTile => {
+    const tile = getWorldTile(seed, x, z);
+    const edit = editMap.get(x + ':' + z);
+    if (!edit) return tile;
+    return {
+      ...tile,
+      ...(edit.biome ? { biome: edit.biome } : {}),
+      ...(edit.resource !== undefined ? { resource: edit.resource } : {}),
+      ...(typeof edit.walkable === 'boolean' ? { walkable: edit.walkable } : {}),
+      ...(Number.isFinite(edit.height) ? { height: Number(edit.height) } : {}),
+    };
+  };
+
   const agents: WorldAgent[] = Array.from({ length: count }, (_, i) => {
     const angle = (i / Math.max(1, count)) * Math.PI * 2;
     return {
@@ -265,7 +303,7 @@ export function simulateWorld(input: WorldSimulationInput): WorldSimulationResul
       const dirs = [
         [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1],
       ];
-      const candidates = dirs.map(([dx, dz]) => getWorldTile(seed, agent.x + dx, agent.z + dz));
+      const candidates = dirs.map(([dx, dz]) => tileAt(agent.x + dx, agent.z + dz));
       const next = deterministicChoice(seed, tick, agent, candidates);
       const moved = next.x !== agent.x || next.z !== agent.z;
       if (moved) {
