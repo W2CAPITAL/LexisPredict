@@ -18,7 +18,10 @@ export type CognitiveIntent =
   | 'skill-learning'
   | 'api-discovery'
   | 'image-generation'
-  | 'video-generation';
+  | 'video-generation'
+  | 'world-simulation'
+  | 'plugin-management'
+  | 'agent-orchestration';
 
 export type CapabilityId =
   | 'lexis-rules'
@@ -41,7 +44,11 @@ export type CapabilityId =
   | 'simulation-engine'
   | 'skill-library'
   | 'api-discovery'
-  | 'comfy-media';
+  | 'comfy-media'
+  | 'plugin-platform'
+  | 'world-sandbox'
+  | 'agent-studio'
+  | 'screen-context';
 
 export type CapabilityRuntime = 'inline' | 'server' | 'browser' | 'sidecar';
 
