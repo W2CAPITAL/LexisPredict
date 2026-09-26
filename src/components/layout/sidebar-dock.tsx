@@ -45,6 +45,7 @@ const more = [
   ["CSV local", "/visualizador-csv", FileSpreadsheet],
   ["DB local", "/visualizador-db", Database],
   ["Assistente", "/chat", Bot],
+  ["AI Lab", "/ai-lab", BrainCircuit],
   ["Veredito", "/veredito", Scale],
   ["Indicadores", "/analytics", BarChart3],
   ["Insights", "/insights", BrainCircuit],
