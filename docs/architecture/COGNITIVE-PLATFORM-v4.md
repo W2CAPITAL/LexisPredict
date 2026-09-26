@@ -209,3 +209,151 @@ Gates obrigatórios do PR:
 - `pnpm install --frozen-lockfile`
 - `pnpm run typecheck`
 - `pnpm test`
+
+
+## Plugin Platform v4.1
+
+Arquivos:
+- `src/lib/plugins/types.ts`
+- `src/lib/plugins/registry.ts`
+- `src/lib/plugins/runtime.ts`
+- `src/app/api/plugins/route.ts`
+- `src/app/plugins/page.tsx`
+
+Contrato:
+- manifesto;
+- categoria/runtime;
+- permissões;
+- configuração;
+- source repos;
+- ações allowlisted.
+
+Não existe carregamento de JavaScript remoto nem `eval`. Plugins pesados são adapters/sidecars.
+
+Plugins internos:
+- Memory Core
+- Firecrawl Research
+- ComfyUI Media
+- Scenario Simulator
+- World Sandbox
+- Agent Studio
+- Screen Context
+- Paddle OCR
+- Change Watch
+- Developer Lab
+
+### API de plugins
+
+`GET /api/plugins` lista status e configuração.
+
+`POST /api/plugins`:
+```json
+{
+  "pluginId": "world-sandbox",
+  "action": "chunk",
+  "input": { "seed": "demo", "chunkX": 0, "chunkZ": 0 }
+}
+```
+
+A API exige sessão e deriva empresa do contexto autenticado.
+
+## Agent Studio
+
+Arquivo: `src/lib/agents/studio.ts`.
+
+Papéis:
+- Director
+- Researcher
+- Builder
+- Critic
+- Simulator
+- Creative
+- QA
+- Security
+- Operator
+
+O time é selecionado pelo objetivo, inspirado em estruturas especializadas de Game Studios/SuperAGI/AgentGPT, mas sem criar dezenas de processos ou providers obrigatórios.
+
+Fluxo:
+goal → selecionar papéis → limitar ferramentas → executar → verificar → sintetizar.
+
+## World Sandbox
+
+Arquivos:
+- `src/lib/simulation/world-engine.ts`
+- `src/app/world-lab/page.tsx`
+
+Princípios aproveitados de Craft e clones voxel:
+- chunks;
+- geração procedural;
+- seed determinística;
+- biomas;
+- recursos;
+- edição/terraforming;
+- inventário;
+- agentes;
+- construção.
+
+A geração é sob demanda. Um chunk em coordenada distante não exige armazenar os chunks intermediários.
+
+### Creative mode
+
+O World Lab permite:
+- marcar estruturas;
+- criar floresta;
+- criar água;
+- colocar ferro;
+- limpar recursos/marcações.
+
+Edições são persistidas no navegador por seed. Elas são enviadas ao motor para geração e episódios, mas não entram no Supabase jurídico.
+
+### Agentes
+
+Objetivos atuais:
+- explore
+- gather
+- build
+
+Estado observado:
+- posição
+- energia
+- inventário
+- estruturas
+- distância
+
+DouZero contribui como referência de episódios/self-play e grandes espaços de ação. Não há treinamento GPU do DouZero dentro do LexisPredict.
+
+## Screen Context (Screenpipe)
+
+Adapter: `src/lib/context/screenpipe.ts`.
+
+Config:
+```env
+SCREENPIPE_BASE_URL=http://endereco-explicitamente-configurado:3030
+SCREENPIPE_API_KEY=opcional
+```
+
+Ação: `screen-context/search`.
+
+O adapter consulta `/search`, de acordo com a interface local documentada pelo Screenpipe.
+
+Privacidade:
+- opt-in;
+- nenhuma captura é iniciada pelo LexisPredict;
+- sem configuração, o plugin fica desativado;
+- dados de tela não são misturados automaticamente com processos jurídicos;
+- em deploy na nuvem, localhost seria o servidor da nuvem, não o PC do usuário; usar apenas endpoint explicitamente acessível/configurado.
+
+## Descoberta de tecnologia
+
+`EvanLi/Github-Ranking`, `awesome`, `public-apis`, `build-your-own-x` e `freeCodeCamp` são fontes de descoberta/aprendizagem.
+
+Popularidade não equivale a aprovação. Antes de adotar:
+1. necessidade real;
+2. manutenção recente;
+3. licença;
+4. superfície de segurança;
+5. tamanho/runtime;
+6. termos/privacidade;
+7. teste isolado;
+8. fallback.
