@@ -43,6 +43,9 @@ export default function PluginsPage() {
   const [plugins, setPlugins] = useState<PluginStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
+  const [agentGoal, setAgentGoal] = useState("");
+  const [agentTeam, setAgentTeam] = useState<any>(null);
+  const [agentBusy, setAgentBusy] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -71,6 +74,27 @@ export default function PluginsPage() {
 
   const configured = plugins.filter((item) => item.configured).length;
   const optional = plugins.filter((item) => item.manifest.optional).length;
+
+  async function planTeam() {
+    if (!agentGoal.trim()) return;
+    setAgentBusy(true);
+    setAgentTeam(null);
+    try {
+      const res = await fetch("/api/plugins", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          pluginId: "agent-studio",
+          action: "plan-team",
+          input: { goal: agentGoal },
+        }),
+      });
+      const json = await res.json();
+      setAgentTeam(json?.ok ? json.data : json);
+    } finally {
+      setAgentBusy(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] px-4 py-6 text-[#102447] md:px-8 md:py-8">
@@ -118,6 +142,48 @@ export default function PluginsPage() {
               Atualizar
             </button>
           </div>
+        </section>
+
+        <section className="rounded-3xl border border-[#dce6f1] bg-white p-5 shadow-[0_12px_36px_rgba(15,48,84,.06)] md:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#1769ff]">
+              <Bot className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="font-black">Agent Studio</h2>
+              <p className="mt-1 text-xs leading-5 text-[#687e98]">
+                Descreva um objetivo e o orquestrador monta o menor time especializado com ferramentas e gates.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-2 md:flex-row">
+            <input
+              value={agentGoal}
+              onChange={(e) => setAgentGoal(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void planTeam()}
+              placeholder="Ex.: pesquisar fontes, simular cenários e implementar uma tela"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-[#d8e3ef] px-3 text-sm outline-none focus:border-[#1769ff]"
+            />
+            <button
+              onClick={() => void planTeam()}
+              disabled={agentBusy || !agentGoal.trim()}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0d3157] px-4 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {agentBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+              Planejar equipe
+            </button>
+          </div>
+          {agentTeam?.roles ? (
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {agentTeam.roles.map((role: any) => (
+                <div key={role.id} className="rounded-xl border border-[#e0e8f1] bg-[#f8fafc] p-3">
+                  <p className="text-xs font-black">{role.label}</p>
+                  <p className="mt-1 text-[11px] leading-5 text-[#647a94]">{role.mission}</p>
+                  <p className="mt-2 text-[10px] font-semibold text-[#476687]">{role.tools.join(" · ")}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
