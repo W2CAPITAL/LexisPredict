@@ -1,4 +1,5 @@
 import { planAgentTeam } from '@/lib/agents/studio';
+import { searchScreenContext } from '@/lib/context/screenpipe';
 import { getComfyHistory, getComfyStatus, queueComfyMedia } from '@/lib/media/comfyui';
 import { firecrawlScrape, firecrawlSearch } from '@/lib/research/firecrawl';
 import { simulateScenarios } from '@/lib/simulation/scenario-engine';
@@ -107,6 +108,21 @@ export async function executePlugin(
           }),
         };
       }
+    }
+
+    if (pluginId === 'screen-context' && action === 'search') {
+      const result = await searchScreenContext({
+        query: String(input?.query || ''),
+        limit: Number(input?.limit || 10),
+        contentType:
+          input?.contentType === 'audio' || input?.contentType === 'ocr'
+            ? input.contentType
+            : 'all',
+        startTime: input?.startTime ? String(input.startTime) : undefined,
+      });
+      return result.ok
+        ? { ok: true, pluginId, action, data: result }
+        : fail(pluginId, action, result.error || 'Screenpipe indisponível.');
     }
 
     if (pluginId === 'agent-studio' && action === 'plan-team') {
