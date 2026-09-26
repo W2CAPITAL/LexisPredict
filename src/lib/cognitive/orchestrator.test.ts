@@ -11,6 +11,14 @@ describe('cognitive orchestrator', () => {
     expect(plan.zeroTokenFirst).toBe(true);
   });
 
+  it('routes web, simulation and media intents', () => {
+    expect(inferCognitiveIntent('pesquisa web com Firecrawl sobre esta empresa')).toBe('web-research');
+    expect(inferCognitiveIntent('simular três cenários com Monte Carlo')).toBe('simulation');
+    expect(inferCognitiveIntent('gerar imagem por prompt')).toBe('image-generation');
+    expect(inferCognitiveIntent('criar vídeo text-to-video')).toBe('video-generation');
+    expect(buildCognitivePlan({ text: 'simular cenários' }).steps[0].capability).toBe('simulation-engine');
+  });
+
   it('routes scanned documents to OCR', () => {
     const plan = buildCognitivePlan({ text: 'extraia o texto', hasDocument: true });
     expect(plan.intent).toBe('document-ocr');
