@@ -1,167 +1,190 @@
 ---
 name: lexis-unified
 description: >
-  Skill unificada LexisPredict: segundo cerebro (memoria local), autoaprimoracao,
-  GTM/agent de marketing, video-gen (image-to-video, demos, reels), ecossistema de repos,
-  self-improve v2 e council multi-perspectiva (estilo llm-council / Karpathy).
-  Use when the user mentions Lexis, carteira, autoaprimorar, GTM, video, reel, animacao,
-  vault, segundo cerebro, council, melhorar agente, router de tokens, eval, ou
-  unificar skills do pacote LEXIS.
+  Skill unificada do LexisPredict para memoria, agentes, pesquisa web, automacao,
+  OCR/documentos, relatorios, geracao de imagem/video, simulacao, engenharia,
+  autoaprimoramento e Council X10.
 metadata:
   type: workflow
-  version: "2.1"
+  version: "4.0"
   unifies:
     - segundo-cerebro
     - lexis-autoimprove
     - lexis-gtm-agent
     - lexis-video-gen
+    - lexis-research
+    - lexis-simulation
     - lexis-self-improve-v2
     - lexis-ecosystem
-  inspired-by: https://github.com/karpathy/llm-council
+    - lexis-cognitive-platform-v4
 ---
 
-# Lexis Unified Skill
+# Lexis Unified Skill v4
 
-Um unico ponto de entrada. Antes havia 5 skills soltas; agora ha **modulos** e um **council**.
+Um ponto de entrada para o produto inteiro. O LexisPredict continua sendo um produto juridico/operacional; repositorios externos viram capacidades, adapters, skills ou laboratorio.
 
-```
-                    ┌─────────────────────┐
-                    │   lexis-unified     │
-                    │   (esta skill)      │
-                    └─────────┬───────────┘
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-   segundo-cerebro      autoimprove /          GTM + video-gen
-   (vault, recall)      self-improve           (copy, reels, demos)
-          │                   │                   │
-          └─────────────┬─────┴───────────────────┘
-                        ▼
-              council (multi-perspectiva)
-                        │
-                        ▼
-              ecosystem (mapa de repos)
-```
+## Loop obrigatorio
 
-## Ordem obrigatoria (todo pedido)
-
-1. **Recall** — `scripts/recall.py` ou ler vault (segundo-cerebro). Nunca comecar codigo sem isso.
-2. **Classificar modo** — tabela abaixo.
-3. **Se a decisao for dura** — rodar **Council** (3+ lentes) e sintetizar.
-4. **Corrigir na camada mais barata** (autoimprove hierarchy).
-5. **Capture** — gravar decisao/fato no vault.
+1. **Recall**: recuperar contexto relevante antes de uma tarefa grande.
+2. **Classificar intent**: regra local antes de modelo.
+3. **Evidencia primeiro**: fatos e dados observados antes de inferencia.
+4. **Menor passo verificavel**: preferir mudancas pequenas e reversiveis.
+5. **Executar**: regra local → adapter → SLM/LLM somente se necessario.
+6. **Verificar**: teste, typecheck, build, endpoint, diff ou resultado funcional.
+7. **Quality gate**: nao marcar sucesso com saida vazia, contraditoria ou sem evidencia exigida.
+8. **Capture**: registrar apenas decisoes duraveis, sem segredo/token/PII desnecessaria.
 
 ## Modos
 
-| Modo | Quando | Modulo |
-|------|--------|--------|
-| `recall` | sempre no inicio | segundo-cerebro |
-| `ship` | bug, KPI, save, escopo, reload | autoimprove + codigo Lexis |
-| `gtm` | post, LinkedIn, lead, copy | gtm-agent |
-| `video` / `media` | reel, video, animacao, image-to-video, demo de produto | video-gen |
-| `improve` | loop semanal, eval, router | autoimprove + self-improve |
-| `council` | arquitetura, trade-off, "o que fazer" | council/ |
-| `design` | UI, contraste, dashboard | segundo-cerebro design rules |
-| `ecosystem` | qual repo usar, unificar produtos | ecosystem |
+| Modo | Quando | Motor/modulo |
+|---|---|---|
+| recall | memoria, contexto, continuidade | segundo-cerebro + memory-v2 |
+| ship | bug, CRUD, build, save, reload | engenharia + testes |
+| research | web, fonte, jurisprudencia, site | Firecrawl + research + evidence |
+| monitor | mudanca em fonte/site | change-watch + Firecrawl opcional |
+| document | OCR, PDF, extracao | PaddleOCR sidecar → Tesseract |
+| media | imagem, video, upscale | ComfyUI sidecar + video-gen |
+| simulate | cenarios, trade-offs, incerteza | scenario-engine local |
+| council | arquitetura/decisao de alto impacto | Council X10 + terceiro lado |
+| learn | curso, skill, "como construir" | skill-library |
+| api | procurar integracao/API | api-discovery |
+| improve | autoaprimoramento | sinais → patch pequeno → eval |
+| gtm | copy, demo, campanha | gtm-agent + media |
 
-## Hierarquia de correcao (0 token primeiro)
-
-```
-1. REGRA / CODIGO Lexis      → 0 token
-2. ROUTER intent             → 0 token
-3. PROMPT / template SLM     → baixo
-4. SLM / few-shot local      → medio
-5. LLM forte                 → ultimo recurso
-```
-
-Meta de trafego do agente: >=70% zero-token, ~25% SLM, <=5% LLM forte.
-
-## Council (estilo llm-council)
-
-Quando o usuario pedir council, "segunda opiniao", arquitetura dificil, ou o modo `council` ligar:
-
-1. Definir a **pergunta em 1 frase** e o criterio de pronto.
-2. Abrir **3 a 5 lentes cegas** (nao se citam entre si na 1a rodada):
-
-| Lente | Foco |
-|-------|------|
-| Ops carteira | KPI, created_by, fila, reload, Supabase |
-| Juridico/produto | BA, DJEN, pecas, LGPD, etica |
-| Custo/token | router, SLM, nao gastar frontier em KPI |
-| Offline/Sheets | Plano B, local-first, sem depender de cota |
-| GTM | mensagem, lead etico, conversao |
-
-3. Cada lente responde sozinha (mesmo modelo ou providers diferentes se houver).
-4. **Sintese**: consenso, divergencia, recomendacao unica, riscos.
-5. Gravar no vault `decisions/YYYY-MM-DD-council-<slug>.md`.
-
-Nao inventar providers. Se so houver um modelo, rode lentes sequenciais com system prompts distintos (council local).
-
-## Router de intent
-
-Script: `scripts/classify_intent.py` (regex, sem API).
-
-| Intent | Destino |
-|--------|---------|
-| kpi, prazo, carteira, save | codigo Lexis (zero token) |
-| copy, post, linkedin | gtm-agent |
-| video, reel, animacao, image-to-video, demo | video-gen |
-| eval, autoaprimorar | autoimprove |
-| memoria, vault | segundo-cerebro |
-| "qual repo", unificar | ecosystem |
-
-`unknown` → SLM, nunca default frontier.
-
-## Loop semanal (improve)
-
-1. Recall falhas/wins da semana.
-2. Sinais sem modelo: logs, intents, reclamações.
-3. Top 5 dores (impacto × frequencia).
-4. **Um** patch na camada mais barata.
-5. Eval (`modules/autoimprove/eval.md`).
-6. Capture no vault.
-
-## Vault (segundo-cerebro)
-
-Pastas: `inbox/`, `notes/`, `decisions/`, `projects/`, `runs/`, `people/`, `prompts/`.
-
-Scripts:
-
-- `scripts/vault_path.sh`
-- `scripts/recall.py --query "..." --limit 8`
-- `scripts/capture.py`
-
-Uma nota = uma ideia. Sem segredo, token ou PII sensivel.
-
-## GTM
-
-- Copy etica (sem lista ilegal, sem spam).
-- Token-router em `modules/gtm-agent/token-router.md`.
-- Classificar intent antes de gastar LLM em texto de marketing.
-
-## Ecossistema Lexis
-
-Mapa consolidado em `modules/ecosystem/` e `modules/autoimprove/repo-map-full.md`.
-
-Principio: **um produto principal (LexisPredict)**; outros repos viram modulo ou plano B, nao Frankenstein.
-
-## Self-improve v2
-
-Politica em `templates/improvement-policy.yml`.  
-Licenca e limites em `modules/self-improve/licensing-and-safety.md`.
-
-## O que esta skill NAO faz
-
-- Nao substitui docx/pdf/pptx/xlsx/ffmpeg.
-- Nao clona 11 repos no contexto.
-- Nao treina LLM do zero no Vercel.
-- Nao coloca DB/CSV de 6 GB no GitHub.
-
-## Checklist rapido de turno
+## Hierarquia de custo
 
 ```
-[ ] Recall feito?
-[ ] Modo certo?
-[ ] Council se a decisao for dura?
-[ ] Correcao na camada mais barata?
-[ ] Capture no vault?
+1. Regra/codigo deterministico    -> 0 token
+2. Memoria/indice/router          -> 0 token
+3. Simulador/diff/OCR local       -> 0 token
+4. Sidecar self-host              -> custo de infra local
+5. SLM/few-shot                   -> baixo
+6. LLM forte / servico pago       -> ultimo recurso
+```
+
+## Engenharia: disciplina de feedback
+
+Inspirado em `mattpocock/skills`, Superpowers e ECC:
+
+- alinhar dominio e nomes antes de ampliar codigo;
+- TDD quando a mudanca tem regra verificavel;
+- diagnosticar bug por evidencia antes de editar;
+- passos pequenos; o feedback e o limite de velocidade;
+- aprofundar modulos com interfaces simples em vez de criar "bola de lama";
+- nao declarar concluido sem gate observavel.
+
+Para mudanca ampla: escrever criterio de pronto, arquivos tocados, riscos e como reverter.
+
+## Cognitive Platform v4
+
+Nucleo: `src/lib/cognitive/`.
+
+Capacidades principais:
+- memory-v2;
+- Council X10;
+- evidence ledger;
+- quality gate;
+- Firecrawl;
+- browser agent;
+- change-watch;
+- OCR/document understanding;
+- model cascade;
+- ComfyUI media;
+- image enhance;
+- scenario simulator;
+- skill-library;
+- API discovery;
+- observability.
+
+Introspeccao/planejamento: `/api/ai/capabilities`.
+Interface operacional: `/ai-lab`.
+
+## Pesquisa web
+
+Fluxo:
+1. definir pergunta;
+2. verificar memoria/local;
+3. Firecrawl search/scrape quando configurado;
+4. registrar fonte + trecho/evidencia;
+5. separar fato, inferencia e lacuna;
+6. quality gate.
+
+Nunca usar scraping para contornar autenticacao, paywall ou autorizacao. URLs privadas/localhost nao entram no adapter publico.
+
+## Media
+
+ComfyUI e sidecar, nunca dependencia do bundle Vercel.
+
+Env:
+- `COMFYUI_BASE_URL`
+- `COMFYUI_TOKEN` opcional
+- `COMFYUI_IMAGE_WORKFLOW_JSON`
+- `COMFYUI_VIDEO_WORKFLOW_JSON`
+
+Placeholders aceitos nos workflows:
+`{{PROMPT}}`, `{{NEGATIVE_PROMPT}}`, `{{WIDTH}}`, `{{HEIGHT}}`, `{{SEED}}`, `{{FRAMES}}`.
+
+Geracao e monitoramento ficam no AI Lab. Upscale e outros workers continuam opcionais.
+
+## Simulacao
+
+`scenario-engine` executa Monte Carlo local com seed reproduzivel.
+
+Use para comparar cenarios sob premissas declaradas. Resultado de simulacao nao e previsao real nem garantia. Para decisao de alto impacto, passar a interpretacao pelo Council e listar premissas que mais influenciam o resultado.
+
+## Aprendizagem e descoberta
+
+Fontes como `build-your-own-x`, `freeCodeCamp`, `awesome`, `public-apis` e `mattpocock/skills` sao catalogos de aprendizagem/descoberta.
+
+Regras:
+- nao instalar dependencias automaticamente porque aparecem em uma lista;
+- validar manutencao, licenca, seguranca, termos e encaixe arquitetural;
+- preferir aprender o padrao e reimplementar uma interface pequena;
+- APIs externas precisam de contrato, timeout, limite e fallback.
+
+## Council X10 + terceiro lado
+
+Lentes:
+1. operacao/carteira
+2. juridico/produto
+3. evidencia/fontes
+4. dados/RLS/LGPD
+5. seguranca/abuso
+6. custo/token/infra
+7. offline/resiliencia
+8. UX/acessibilidade
+9. QA/testes/reversibilidade
+10. negocio/GTM
+
+Depois da tese e antitese, abrir o terceiro lado:
+- qual premissa os dois lados compartilham?
+- existe opcao C menor/reversivel?
+- o que acontece sem API/modelo?
+- o que a evidencia nao permite concluir?
+
+## Deep-100
+
+Somente em decisoes de alto impacto. Gerar ate 100 perguntas agrupadas por evidencia, usuario, dados, seguranca, custo, operacao, UX, reversibilidade, testes e longo prazo. Deduplicar antes de responder.
+
+## Politica de repositorios externos
+
+- TypeScript leve + licenca adequada: pode inspirar modulo interno apos revisao.
+- Python/Rust/C++ pesado: sidecar/worker.
+- GPL/AGPL/LGPL/licenca incerta: nao copiar para o core sem revisao.
+- Repositorios fora do dominio juridico ficam em Lab/NON-CORE.
+- Nenhuma integracao pode ignorar `empresa_id`, RLS, papeis, consentimento ou auditoria.
+
+Mapa: `docs/architecture/COGNITIVE-PLATFORM-v4.md`.
+
+## Checklist
+
+```
+[ ] Recall/contexto suficiente?
+[ ] Intent correto?
+[ ] Regra local antes de LLM?
+[ ] Fonte/evidencia quando necessario?
+[ ] Menor mudanca verificavel?
+[ ] Teste/typecheck/build/resultado?
+[ ] Sidecar opcional sem quebrar core?
+[ ] Capture duravel?
 ```
