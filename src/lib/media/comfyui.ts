@@ -56,7 +56,7 @@ export function applyWorkflowBindings<T>(value: T, bindings: Record<string, stri
     if (exact && Object.prototype.hasOwnProperty.call(bindings, exact[1])) {
       return bindings[exact[1]] as T;
     }
-    let out = value;
+    let out = String(value);
     for (const [key, replacement] of Object.entries(bindings)) {
       out = out.split(`{{${key}}}`).join(String(replacement));
     }
