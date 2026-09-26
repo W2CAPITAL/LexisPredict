@@ -3,20 +3,20 @@ name: lexis-unified
 description: >
   Skill unificada LexisPredict: segundo cerebro (memoria local), autoaprimoracao,
   GTM/agent de marketing, video-gen (image-to-video, demos, reels), ecossistema de repos,
-  self-improve v2 e council multi-perspectiva (estilo llm-council / Karpathy).
+  self-improve v2, Cognitive Platform v3 e council X10 com terceira perspectiva.
   Use when the user mentions Lexis, carteira, autoaprimorar, GTM, video, reel, animacao,
   vault, segundo cerebro, council, melhorar agente, router de tokens, eval, ou
   unificar skills do pacote LEXIS.
 metadata:
   type: workflow
-  version: "2.1"
+  version: "3.0"
   unifies:
     - segundo-cerebro
     - lexis-autoimprove
     - lexis-gtm-agent
     - lexis-video-gen
     - lexis-self-improve-v2
-    - lexis-ecosystem
+    - lexis-ecosystem\n    - lexis-cognitive-platform-v3
   inspired-by: https://github.com/karpathy/llm-council
 ---
 
@@ -62,6 +62,11 @@ Um unico ponto de entrada. Antes havia 5 skills soltas; agora ha **modulos** e u
 | `council` | arquitetura, trade-off, "o que fazer" | council/ |
 | `design` | UI, contraste, dashboard | segundo-cerebro design rules |
 | `ecosystem` | qual repo usar, unificar produtos | ecosystem |
+| `research` | pesquisa profunda, fontes, jurisprudencia | cognitive research |
+| `document` | OCR, PDF, extracao estruturada | cognitive OCR/document |
+| `monitor` | vigiar mudancas em fonte/site | cognitive change-watch |
+| `browser` | tarefa autorizada no navegador | cognitive browser-agent |
+| `voice` | narracao, voz, transcricao | cognitive voice sidecar |
 
 ## Hierarquia de correcao (0 token primeiro)
 
@@ -148,6 +153,44 @@ Principio: **um produto principal (LexisPredict)**; outros repos viram modulo ou
 
 Politica em `templates/improvement-policy.yml`.  
 Licenca e limites em `modules/self-improve/licensing-and-safety.md`.
+
+
+## Cognitive Platform v3
+
+Nucleo em `src/lib/cognitive/`. Todo agente novo deve declarar capacidade, runtime e custo antes de executar.
+
+Fluxo padrao:
+
+1. **Classificar intent** com regra local.
+2. **Recuperar memoria relevante** e deduplicar contexto.
+3. **Executar capacidade deterministica** antes de LLM.
+4. **Usar modelo/council** somente quando a regra nao resolve.
+5. **Quality gate** antes de marcar sucesso.
+6. **Observabilidade** sem gravar segredo, token ou PII desnecessaria.
+
+Endpoint de introspeccao: `GET /api/ai/capabilities`.
+Planejamento: `POST /api/ai/capabilities` com `{ "text": "..." }`.
+
+### Decision Deep-100
+
+Para decisoes de alto impacto (arquitetura, seguranca, migracao, plano comercial, alteracao de dados):
+- gerar ate 100 perguntas de verificacao agrupadas por evidencia, usuario, dados, seguranca, custo, operacao, UX, reversibilidade, testes e longo prazo;
+- eliminar perguntas duplicadas;
+- responder primeiro as perguntas com evidencia ja disponivel;
+- rodar Council X10;
+- adicionar uma **terceira perspectiva** que procure premissas que os dois lados nao perceberam;
+- so entao sintetizar a decisao e registrar riscos residuais.
+
+Nao rodar Deep-100 para pergunta simples, CRUD trivial ou tarefa deterministica.
+
+### Politica de integracao externa
+
+- TypeScript leve e licenca compativel: pode virar modulo interno apos revisao.
+- Python/Rust/C++ pesado: sidecar/worker opcional.
+- AGPL/GPL/LGPL ou licenca incerta: nao copiar codigo para o core; usar apenas conceitos, protocolo ou processo separado apos revisao juridica.
+- Nenhuma referencia externa pode ignorar `empresa_id`, RLS, papeis, consentimento ou logs do LexisPredict.
+
+Mapa: `docs/architecture/COGNITIVE-PLATFORM-v3.md`.
 
 ## O que esta skill NAO faz
 
