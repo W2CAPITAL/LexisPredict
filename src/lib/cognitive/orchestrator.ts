@@ -3,12 +3,12 @@ import type { CapabilityId, CognitiveIntent, CognitivePlan, CognitivePlanStep } 
 
 const RULES: Array<{ intent: CognitiveIntent; patterns: RegExp[] }> = [
   { intent: 'document-ocr', patterns: [/ocr/i, /extrair texto/i, /imagem.*texto/i, /documento escaneado/i] },
+  { intent: 'web-research', patterns: [/pesquisa web/i, /buscar na web/i, /scrap/i, /crawl/i, /firecrawl/i, /pesquisar site/i] },
   { intent: 'legal-research', patterns: [/pesquis/i, /jurisprud/i, /doutrina/i, /fonte/i, /precedente/i] },
   { intent: 'case-analysis', patterns: [/processo/i, /cnj/i, /djen/i, /datajud/i, /liminar/i, /senten[cç]a/i] },
   { intent: 'simulation', patterns: [/simulad/i, /simular/i, /monte\s*carlo/i, /cen[aá]rios?/i, /probabilidade.*op[cç][aã]o/i] },
   { intent: 'video-generation', patterns: [/gerar v[ií]deo/i, /criar v[ií]deo/i, /image[- ]to[- ]video/i, /text[- ]to[- ]video/i] },
   { intent: 'image-generation', patterns: [/gerar imagem/i, /criar imagem/i, /text[- ]to[- ]image/i, /imagem por prompt/i] },
-  { intent: 'web-research', patterns: [/pesquisa web/i, /buscar na web/i, /scrap/i, /crawl/i, /firecrawl/i, /pesquisar site/i] },
   { intent: 'api-discovery', patterns: [/api p[uú]blica/i, /public[- ]apis?/i, /descobrir api/i, /api gratuita/i] },
   { intent: 'skill-learning', patterns: [/build[- ]your[- ]own/i, /freecodecamp/i, /aprender.*c[oó]digo/i, /skill.*engenharia/i, /tutorial.*implement/i] },
   { intent: 'automation', patterns: [/automat/i, /cron/i, /rotina/i, /workflow/i] },
