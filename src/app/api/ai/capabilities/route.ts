@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { listCapabilities } from '@/lib/cognitive/registry';
 import { buildCognitivePlan } from '@/lib/cognitive/orchestrator';
+import { listCognitiveSources } from '@/lib/cognitive/source-catalog';
 
 export async function GET() {
   return NextResponse.json({
-    version: '3.0',
+    version: '4.0',
     capabilities: listCapabilities(),
+    sources: listCognitiveSources(),
   });
 }
 

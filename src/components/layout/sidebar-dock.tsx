@@ -8,7 +8,7 @@ import {
   Gavel, Hash, MessageCircle, CalendarDays, FileText, BarChart3, Users,
   ShieldCheck, Kanban, Wallet, Calculator, Bot, MessagesSquare, Upload,
   Settings, Search, Menu, LogOut, Zap, StickyNote, PlayCircle, BrainCircuit,
-  Crown, Monitor, Scale, FileSpreadsheet, Database,
+  Crown, Monitor, Scale, FileSpreadsheet, Database, Globe2, Puzzle,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useAdmin } from "@/hooks/use-admin";
@@ -45,6 +45,9 @@ const more = [
   ["CSV local", "/visualizador-csv", FileSpreadsheet],
   ["DB local", "/visualizador-db", Database],
   ["Assistente", "/chat", Bot],
+  ["AI Lab", "/ai-lab", BrainCircuit],
+  ["Plugin Hub", "/plugins", Puzzle],
+  ["World Lab", "/world-lab", Globe2],
   ["Veredito", "/veredito", Scale],
   ["Indicadores", "/analytics", BarChart3],
   ["Insights", "/insights", BrainCircuit],

@@ -12,7 +12,16 @@ export type CognitiveIntent =
   | 'image-enhance'
   | 'visual-generation'
   | 'developer'
-  | 'knowledge';
+  | 'knowledge'
+  | 'web-research'
+  | 'simulation'
+  | 'skill-learning'
+  | 'api-discovery'
+  | 'image-generation'
+  | 'video-generation'
+  | 'world-simulation'
+  | 'plugin-management'
+  | 'agent-orchestration';
 
 export type CapabilityId =
   | 'lexis-rules'
@@ -30,7 +39,16 @@ export type CapabilityId =
   | 'visual-render'
   | 'model-cascade'
   | 'quality-gate'
-  | 'observability';
+  | 'observability'
+  | 'firecrawl'
+  | 'simulation-engine'
+  | 'skill-library'
+  | 'api-discovery'
+  | 'comfy-media'
+  | 'plugin-platform'
+  | 'world-sandbox'
+  | 'agent-studio'
+  | 'screen-context';
 
 export type CapabilityRuntime = 'inline' | 'server' | 'browser' | 'sidecar';
 
