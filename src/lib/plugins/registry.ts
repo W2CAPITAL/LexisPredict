@@ -93,7 +93,7 @@ export const PLUGINS: PluginManifest[] = [
     sourceRepos: ['screenpipe/screenpipe'],
     optional: true,
     configKeys: ['SCREENPIPE_BASE_URL'],
-    actions: ['status'],
+    actions: ['status', 'search'],
   },
   {
     id: 'ocr-paddle',
