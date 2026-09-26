@@ -17,6 +17,9 @@ describe('cognitive orchestrator', () => {
     expect(inferCognitiveIntent('gerar imagem por prompt')).toBe('image-generation');
     expect(inferCognitiveIntent('criar vídeo text-to-video')).toBe('video-generation');
     expect(buildCognitivePlan({ text: 'simular cenários' }).steps[0].capability).toBe('simulation-engine');
+    expect(inferCognitiveIntent('crie um mundo procedural com chunks')).toBe('world-simulation');
+    expect(inferCognitiveIntent('abra o plugin hub')).toBe('plugin-management');
+    expect(inferCognitiveIntent('monte uma equipe de agentes')).toBe('agent-orchestration');
   });
 
   it('routes scanned documents to OCR', () => {
