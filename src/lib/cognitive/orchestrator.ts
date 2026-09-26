@@ -6,6 +6,9 @@ const RULES: Array<{ intent: CognitiveIntent; patterns: RegExp[] }> = [
   { intent: 'web-research', patterns: [/pesquisa web/i, /buscar na web/i, /scrap/i, /crawl/i, /firecrawl/i, /pesquisar site/i] },
   { intent: 'legal-research', patterns: [/pesquis/i, /jurisprud/i, /doutrina/i, /fonte/i, /precedente/i] },
   { intent: 'case-analysis', patterns: [/processo/i, /cnj/i, /djen/i, /datajud/i, /liminar/i, /senten[cç]a/i] },
+  { intent: 'world-simulation', patterns: [/mundo procedural/i, /world sandbox/i, /sandbox/i, /minecraft/i, /voxel/i, /biomas?/i, /chunks?/i] },
+  { intent: 'plugin-management', patterns: [/plugins?/i, /plugin hub/i, /conector(es)?/i, /toolkits?/i] },
+  { intent: 'agent-orchestration', patterns: [/equipe de agentes/i, /agent studio/i, /multiagente/i, /multi-agent/i, /spawn.*agente/i] },
   { intent: 'simulation', patterns: [/simulad/i, /simular/i, /monte\s*carlo/i, /cen[aá]rios?/i, /probabilidade.*op[cç][aã]o/i] },
   { intent: 'video-generation', patterns: [/gerar v[ií]deo/i, /criar v[ií]deo/i, /image[- ]to[- ]video/i, /text[- ]to[- ]video/i] },
   { intent: 'image-generation', patterns: [/gerar imagem/i, /criar imagem/i, /text[- ]to[- ]image/i, /imagem por prompt/i] },
@@ -55,6 +58,21 @@ const INTENT_STEPS: Record<CognitiveIntent, CognitivePlanStep[]> = {
     step('memory-v2', 'Trazer histórico relevante do caso.'),
     step('council', 'Analisar por lentes operacional, jurídica e crítica.'),
     step('quality-gate', 'Checar coerência e evidência.'),
+  ],
+  'world-simulation': [
+    step('world-sandbox', 'Gerar mundo/chunks e executar agentes localmente.'),
+    step('agent-studio', 'Selecionar papéis especializados quando houver múltiplos agentes.', false),
+    step('quality-gate', 'Separar simulação criativa de fatos do mundo real.'),
+  ],
+  'plugin-management': [
+    step('plugin-platform', 'Resolver capacidades por manifesto, permissões e configuração.'),
+    step('quality-gate', 'Bloquear execução não registrada ou sem permissão.'),
+  ],
+  'agent-orchestration': [
+    step('agent-studio', 'Planejar equipe, papéis, ferramentas e gates.'),
+    step('memory-v2', 'Dar contexto útil sem duplicação.'),
+    step('council', 'Revisar objetivos e conflitos entre agentes.', false),
+    step('quality-gate', 'Exigir resultado verificável.'),
   ],
   'web-research': [
     step('memory-v2', 'Evitar repetir pesquisa já resolvida.'),
