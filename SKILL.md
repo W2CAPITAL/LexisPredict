@@ -6,7 +6,7 @@ description: >
   autoaprimoramento e Council X10.
 metadata:
   type: workflow
-  version: "4.0"
+  version: "4.1"
   unifies:
     - segundo-cerebro
     - lexis-autoimprove
@@ -17,6 +17,8 @@ metadata:
     - lexis-self-improve-v2
     - lexis-ecosystem
     - lexis-cognitive-platform-v4
+    - lexis-plugin-platform
+    - lexis-world-sandbox
 ---
 
 # Lexis Unified Skill v4
@@ -48,6 +50,9 @@ Um ponto de entrada para o produto inteiro. O LexisPredict continua sendo um pro
 | council | arquitetura/decisao de alto impacto | Council X10 + terceiro lado |
 | learn | curso, skill, "como construir" | skill-library |
 | api | procurar integracao/API | api-discovery |
+| plugins | plugin, connector, toolkit | plugin-platform |
+| world | mundo, sandbox, voxel, bioma, criatividade | world-sandbox |
+| agents | equipe de agentes, multiagente | agent-studio |
 | improve | autoaprimoramento | sinais → patch pequeno → eval |
 | gtm | copy, demo, campanha | gtm-agent + media |
 
@@ -97,7 +102,7 @@ Capacidades principais:
 - observability.
 
 Introspeccao/planejamento: `/api/ai/capabilities`.
-Interface operacional: `/ai-lab`.
+Interfaces: `/ai-lab`, `/plugins` e `/world-lab`.
 
 ## Pesquisa web
 
@@ -188,3 +193,21 @@ Mapa: `docs/architecture/COGNITIVE-PLATFORM-v4.md`.
 [ ] Sidecar opcional sem quebrar core?
 [ ] Capture duravel?
 ```
+
+
+## Plugin Platform v4.1
+
+Plugins possuem manifesto, permissões, runtime, configuração e ações allowlisted.
+Não carregar código remoto arbitrário. Sidecars são integrados por adapters tipados.
+Screenpipe é opt-in e só consulta contexto quando explicitamente acionado.
+
+## World Sandbox v4.1
+
+O mundo procedural usa chunks e seed para permitir exploração de coordenadas sem pré-alocar um mapa finito.
+Biomas, recursos, agentes, inventário e edições criativas são reproduzíveis.
+Edições do World Lab ficam locais ao navegador e não entram nas tabelas jurídicas.
+
+## Agent Studio
+
+O agente diretor monta times mínimos conforme o objetivo: researcher, builder, critic, simulator, creative, QA, security e operator.
+Cada papel recebe ferramentas limitadas e passa por gates de evidência/QA.
