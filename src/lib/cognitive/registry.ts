@@ -143,7 +143,7 @@ export const COGNITIVE_CAPABILITIES: Record<CapabilityId, CapabilityDefinition> 
     runtime: 'server',
     zeroToken: true,
     optional: false,
-    sourcePatterns: ['playbox-dev/trackstudio', 'ruvnet/RuView'],
+    sourcePatterns: ['pacifio/atlas', 'affaan-m/ECC', 'alphaXiv/OpenResearch'],
   },
 };
 
