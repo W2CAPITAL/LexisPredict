@@ -45,7 +45,13 @@ export async function searchScreenContext(input: {
       cache: 'no-store',
       signal: AbortSignal.timeout(15_000),
     });
-    const data = await res.json().catch(async () => ({ text: await res.text().catch(() => '') }));
+    const raw = await res.text();
+    let data: any = { text: raw };
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      // texto simples é válido para diagnóstico
+    }
 
     if (!res.ok) {
       return {
