@@ -5,6 +5,12 @@ const RULES: Array<{ intent: CognitiveIntent; patterns: RegExp[] }> = [
   { intent: 'document-ocr', patterns: [/ocr/i, /extrair texto/i, /imagem.*texto/i, /documento escaneado/i] },
   { intent: 'legal-research', patterns: [/pesquis/i, /jurisprud/i, /doutrina/i, /fonte/i, /precedente/i] },
   { intent: 'case-analysis', patterns: [/processo/i, /cnj/i, /djen/i, /datajud/i, /liminar/i, /senten[cç]a/i] },
+  { intent: 'simulation', patterns: [/simulad/i, /simular/i, /monte\s*carlo/i, /cen[aá]rios?/i, /probabilidade.*op[cç][aã]o/i] },
+  { intent: 'video-generation', patterns: [/gerar v[ií]deo/i, /criar v[ií]deo/i, /image[- ]to[- ]video/i, /text[- ]to[- ]video/i] },
+  { intent: 'image-generation', patterns: [/gerar imagem/i, /criar imagem/i, /text[- ]to[- ]image/i, /imagem por prompt/i] },
+  { intent: 'web-research', patterns: [/pesquisa web/i, /buscar na web/i, /scrap/i, /crawl/i, /firecrawl/i, /pesquisar site/i] },
+  { intent: 'api-discovery', patterns: [/api p[uú]blica/i, /public[- ]apis?/i, /descobrir api/i, /api gratuita/i] },
+  { intent: 'skill-learning', patterns: [/build[- ]your[- ]own/i, /freecodecamp/i, /aprender.*c[oó]digo/i, /skill.*engenharia/i, /tutorial.*implement/i] },
   { intent: 'automation', patterns: [/automat/i, /cron/i, /rotina/i, /workflow/i] },
   { intent: 'web-monitor', patterns: [/monitor/i, /mudan[cç]a/i, /acompanhar site/i, /vigiar/i] },
   { intent: 'browser-task', patterns: [/navegador/i, /browser/i, /clicar/i, /preencher site/i] },
@@ -40,6 +46,7 @@ const INTENT_STEPS: Record<CognitiveIntent, CognitivePlanStep[]> = {
   'legal-research': [
     step('memory-v2', 'Reusar contexto e decisões existentes.'),
     step('research', 'Separar perguntas, fontes e evidências.'),
+    step('firecrawl', 'Ampliar fontes web quando Firecrawl estiver configurado.', false),
     step('council', 'Revisar fatos, contrapontos e implicações.'),
     step('quality-gate', 'Bloquear afirmações sem suporte suficiente.'),
   ],
@@ -48,6 +55,38 @@ const INTENT_STEPS: Record<CognitiveIntent, CognitivePlanStep[]> = {
     step('memory-v2', 'Trazer histórico relevante do caso.'),
     step('council', 'Analisar por lentes operacional, jurídica e crítica.'),
     step('quality-gate', 'Checar coerência e evidência.'),
+  ],
+  'web-research': [
+    step('memory-v2', 'Evitar repetir pesquisa já resolvida.'),
+    step('firecrawl', 'Buscar e extrair conteúdo web estruturado quando configurado.', false),
+    step('research', 'Organizar fontes, perguntas e evidências.'),
+    step('quality-gate', 'Separar fonte, inferência e conclusão.'),
+  ],
+  simulation: [
+    step('simulation-engine', 'Comparar cenários localmente antes de gastar modelo.'),
+    step('council', 'Interpretar premissas e riscos do modelo.', false),
+    step('quality-gate', 'Evitar tratar simulação como previsão garantida.'),
+  ],
+  'skill-learning': [
+    step('skill-library', 'Selecionar material curado e prática deliberada.'),
+    step('memory-v2', 'Conectar aprendizado ao contexto já conhecido.'),
+    step('quality-gate', 'Exigir exercício, teste ou artefato verificável.'),
+  ],
+  'api-discovery': [
+    step('api-discovery', 'Filtrar APIs por utilidade, autenticação e risco.'),
+    step('research', 'Validar documentação e limites atuais.', false),
+    step('quality-gate', 'Não integrar API sem contrato, termos e fallback.'),
+  ],
+  'image-generation': [
+    step('comfy-media', 'Enfileirar workflow de imagem quando ComfyUI estiver configurado.', false),
+    step('visual-render', 'Usar motor visual alternativo quando disponível.', false),
+    step('image-enhance', 'Aplicar upscale apenas depois da geração.', false),
+    step('quality-gate', 'Verificar aderência ao prompt e integridade visual.'),
+  ],
+  'video-generation': [
+    step('comfy-media', 'Enfileirar workflow de vídeo quando ComfyUI estiver configurado.', false),
+    step('visual-render', 'Usar pipeline de vídeo/render alternativo.', false),
+    step('quality-gate', 'Validar duração, frames, texto e aderência ao pedido.'),
   ],
   'document-ocr': [
     step('ocr', 'Extrair texto com motor local/self-host e fallback.'),
@@ -61,6 +100,7 @@ const INTENT_STEPS: Record<CognitiveIntent, CognitivePlanStep[]> = {
   ],
   'web-monitor': [
     step('change-watch', 'Gerar snapshots e diffs antes de interpretar mudanças.'),
+    step('firecrawl', 'Extrair a versão atual da fonte quando configurado.', false),
     step('research', 'Interpretar somente mudanças relevantes.', false),
     step('observability', 'Registrar quando e por que houve alerta.'),
   ],
