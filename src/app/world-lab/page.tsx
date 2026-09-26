@@ -13,6 +13,16 @@ type Tile = {
   height: number;
   biome: string;
   resource: string | null;
+  marker?: string | null;
+};
+
+type WorldEdit = {
+  x: number;
+  z: number;
+  biome?: string;
+  resource?: string | null;
+  walkable?: boolean;
+  marker?: string | null;
 };
 
 type Chunk = {
@@ -53,6 +63,8 @@ export default function WorldLabPage() {
   const [agents, setAgents] = useState(12);
   const [simulation, setSimulation] = useState<any>(null);
   const [simBusy, setSimBusy] = useState(false);
+  const [edits, setEdits] = useState<WorldEdit[]>([]);
+  const [tool, setTool] = useState<"structure" | "forest" | "water" | "iron" | "clear">("structure");
 
   async function callPlugin(action: string, input: Record<string, unknown>) {
     const res = await fetch("/api/plugins", {
@@ -66,7 +78,7 @@ export default function WorldLabPage() {
   async function loadChunk(nextX = chunkX, nextZ = chunkZ) {
     setBusy(true);
     try {
-      const json = await callPlugin("chunk", { seed, chunkX: nextX, chunkZ: nextZ, size: 16 });
+      const json = await callPlugin("chunk", { seed, chunkX: nextX, chunkZ: nextZ, size: 16, edits });
       if (json?.ok) setChunk(json.data);
     } finally {
       setBusy(false);
@@ -74,10 +86,49 @@ export default function WorldLabPage() {
   }
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem("lexis_world_edits_v1:" + seed);
+      setEdits(raw ? JSON.parse(raw) : []);
+    } catch {
+      setEdits([]);
+    }
+  }, [seed]);
+
+  useEffect(() => {
     void loadChunk(0, 0);
     // Navegação posterior é explícita.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function persistEdits(next: WorldEdit[]) {
+    setEdits(next);
+    try {
+      localStorage.setItem("lexis_world_edits_v1:" + seed, JSON.stringify(next));
+    } catch {
+      // O sandbox continua funcional sem persistência local.
+    }
+  }
+
+  async function editTile(tile: Tile) {
+    const base: WorldEdit = { x: tile.x, z: tile.z };
+    let edit: WorldEdit = base;
+
+    if (tool === "structure") edit = { ...base, marker: "structure", biome: "plains", walkable: true };
+    if (tool === "forest") edit = { ...base, biome: "forest", resource: "wood", walkable: true, marker: null };
+    if (tool === "water") edit = { ...base, biome: "ocean", resource: "water", walkable: false, marker: null };
+    if (tool === "iron") edit = { ...base, resource: "iron", marker: null };
+    if (tool === "clear") edit = { ...base, resource: null, marker: null };
+
+    const next = edits.filter((item) => item.x !== tile.x || item.z !== tile.z).concat(edit);
+    persistEdits(next);
+    setBusy(true);
+    try {
+      const json = await callPlugin("chunk", { seed, chunkX, chunkZ, size: 16, edits: next });
+      if (json?.ok) setChunk(json.data);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function move(dx: number, dz: number) {
     const x = chunkX + dx;
@@ -96,6 +147,7 @@ export default function WorldLabPage() {
         ticks,
         agents,
         goals: ["explore", "gather", "build"],
+        edits,
       });
       setSimulation(json?.ok ? json.data : json);
     } finally {
@@ -155,6 +207,38 @@ export default function WorldLabPage() {
               </button>
             </div>
 
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                ["structure", "Construir"],
+                ["forest", "Floresta"],
+                ["water", "Água"],
+                ["iron", "Ferro"],
+                ["clear", "Limpar"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setTool(id as typeof tool)}
+                  className={"rounded-xl px-3 py-2 text-xs font-bold " + (
+                    tool === id ? "bg-[#0d3157] text-white" : "bg-[#eef3f8] text-[#59718d]"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  persistEdits([]);
+                  void loadChunk();
+                }}
+                className="rounded-xl border border-[#d7e2ed] px-3 py-2 text-xs font-bold text-[#6a7f98]"
+              >
+                Resetar edições
+              </button>
+              <span className="self-center text-[10px] font-semibold text-[#7b8ea5]">
+                Clique no mapa para editar. Edições salvas localmente por seed.
+              </span>
+            </div>
+
             <div className="mt-5 grid gap-4 lg:grid-cols-[auto_1fr]">
               <div className="flex flex-col items-center justify-center gap-1">
                 <NavButton onClick={() => void move(0, -1)}><ChevronUp className="h-4 w-4" /></NavButton>
@@ -174,18 +258,23 @@ export default function WorldLabPage() {
                   style={{ gridTemplateColumns: "repeat(" + chunk.size + ", minmax(0, 1fr))" }}
                 >
                   {chunk.tiles.map((tile) => (
-                    <div
+                    <button
+                      type="button"
+                      onClick={() => void editTile(tile)}
                       key={tile.x + ":" + tile.z}
                       title={tile.x + "," + tile.z + " · " + tile.biome + (tile.resource ? " · " + tile.resource : "")}
                       className={"relative aspect-square border border-black/[.035] " + (biomeClass[tile.biome] || "bg-slate-300")}
                       style={{ opacity: Math.max(0.62, Math.min(1, 0.72 + tile.height * 0.28)) }}
                     >
+                      {tile.marker === "structure" ? (
+                        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white drop-shadow sm:text-[10px]">⌂</span>
+                      ) : null}
                       {tile.resource ? (
                         <span className="absolute inset-0 flex items-center justify-center text-[7px] font-black text-black/55 sm:text-[9px]">
                           {resourceMark[tile.resource] || "·"}
                         </span>
                       ) : null}
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
