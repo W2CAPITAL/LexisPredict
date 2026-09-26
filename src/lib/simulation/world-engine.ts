@@ -17,6 +17,7 @@ export type WorldTile = {
   biome: WorldBiome;
   resource: WorldResource;
   walkable: boolean;
+  marker?: string | null;
 };
 
 export type WorldEdit = {
@@ -26,6 +27,7 @@ export type WorldEdit = {
   resource?: WorldResource;
   walkable?: boolean;
   height?: number;
+  marker?: string | null;
 };
 
 export type WorldChunk = {
@@ -196,6 +198,7 @@ export function generateWorldChunk(
       ...(edit.resource !== undefined ? { resource: edit.resource } : {}),
       ...(typeof edit.walkable === 'boolean' ? { walkable: edit.walkable } : {}),
       ...(Number.isFinite(edit.height) ? { height: Number(edit.height) } : {}),
+      ...(edit.marker !== undefined ? { marker: edit.marker } : {}),
     };
   });
 
@@ -279,6 +282,7 @@ export function simulateWorld(input: WorldSimulationInput): WorldSimulationResul
       ...(edit.resource !== undefined ? { resource: edit.resource } : {}),
       ...(typeof edit.walkable === 'boolean' ? { walkable: edit.walkable } : {}),
       ...(Number.isFinite(edit.height) ? { height: Number(edit.height) } : {}),
+      ...(edit.marker !== undefined ? { marker: edit.marker } : {}),
     };
   };
 
