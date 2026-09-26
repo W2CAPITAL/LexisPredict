@@ -64,6 +64,7 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/automacao-judicial",
     "/ia-sync",
     "/chat",
+    "/ai-lab",
     "/chat-ia",
     "/chatbot-separado",
     "/substabelecimento",
