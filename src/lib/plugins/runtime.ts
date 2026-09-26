@@ -88,7 +88,8 @@ export async function executePlugin(
             input?.seed,
             Number(input?.chunkX || 0),
             Number(input?.chunkZ || 0),
-            Number(input?.size || 16)
+            Number(input?.size || 16),
+            Array.isArray(input?.edits) ? input.edits : []
           ),
         };
       }
@@ -102,6 +103,7 @@ export async function executePlugin(
             ticks: input?.ticks,
             agents: input?.agents,
             goals: Array.isArray(input?.goals) ? input.goals : undefined,
+            edits: Array.isArray(input?.edits) ? input.edits : undefined,
           }),
         };
       }
