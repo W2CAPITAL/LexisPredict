@@ -182,6 +182,31 @@ export async function ensurePlanilhaCarteiraSeededAction(): Promise<PlanilhaCart
   const admin = await getSupabaseAdmin();
   const empresaId = String(ctx.empresa_id);
 
+  // Isolamento multiempresa: um webhook de Sheets aponta para uma carteira concreta.
+  // Em instalação single-tenant podemos inferir com segurança. Ao existir mais de
+  // uma empresa, a variável abaixo passa a ser obrigatória.
+  const configuredEmpresaId = String(process.env.LEXIS_SHEETS_EMPRESA_ID || '').trim();
+  if (configuredEmpresaId && configuredEmpresaId !== empresaId) {
+    return {
+      ...empty,
+      skipped: true,
+      reason: 'A planilha configurada pertence a outra empresa.',
+    };
+  }
+  if (!configuredEmpresaId) {
+    const { count: companyCount, error: companyCountError } = await admin
+      .from('empresas')
+      .select('id', { count: 'exact', head: true });
+    if (companyCountError) throw companyCountError;
+    if (Number(companyCount || 0) !== 1) {
+      return {
+        ...empty,
+        skipped: true,
+        reason: 'Defina LEXIS_SHEETS_EMPRESA_ID antes do bootstrap em ambiente multiempresa.',
+      };
+    }
+  }
+
   const { data: usersRaw, error: usersError } = await admin
     .from('usuarios')
     .select('auth_user_id,nome,email')
