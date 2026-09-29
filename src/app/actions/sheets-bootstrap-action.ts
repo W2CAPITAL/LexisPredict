@@ -264,8 +264,8 @@ export async function ensurePlanilhaCarteiraSeededAction(): Promise<PlanilhaCart
   });
 
   let inserted = 0;
-  for (let i = 0; i < payload.length; i += 100) {
-    const chunk = payload.slice(i, i + 100);
+  for (let i = 0; i < payload.length; i += 250) {
+    const chunk = payload.slice(i, i + 250);
     const { data: written, error: writeError } = await admin
       .from('processos')
       .upsert(chunk, {
