@@ -3,15 +3,23 @@
 import type { LegalCase } from "@/lib/case-logic";
 import { processarCaso } from "@/lib/case-logic";
 
+function nk(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[\\s._-]+/g, "")
+    .toLowerCase();
+}
+
 function g(row: any, ...keys: string[]): string {
   if (!row || typeof row !== "object") return "";
   for (const k of keys) {
     if (row[k] != null && String(row[k]).trim() !== "") return String(row[k]).trim();
   }
-  const lower: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(row)) lower[String(k).toLowerCase()] = v;
+  const normalized: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) normalized[nk(k)] = v;
   for (const k of keys) {
-    const v = lower[k.toLowerCase()];
+    const v = normalized[nk(k)];
     if (v != null && String(v).trim() !== "") return String(v).trim();
   }
   return "";
@@ -36,7 +44,19 @@ export function sheetRowToLegalCase(row: any, idx = 0): LegalCase | null {
     "Prazo",
     "proximo_prazo"
   );
-  const createdBy = g(row, "CreatedBy", "created_by", "Responsavel", "responsavel");
+  // CreatedBy/Responsável são metadados legados de criação. A carteira operacional
+  // vem de Assistente e é resolvida para auth_user_id no bootstrap do Postgres.
+  const createdBy = g(
+    row,
+    "CreatedBy",
+    "created_by",
+    "Criado por (ID)",
+    "Criado por",
+    "Responsável",
+    "Responsavel",
+    "responsavel"
+  );
+  const assistente = g(row, "Assistente", "assistente");
   const atendido = g(row, "AtendidoPor", "atendido_por", "atendidoPor");
   const status = g(row, "Status", "status");
   const situacao = g(row, "Situacao", "situacao") || status;
@@ -72,7 +92,8 @@ export function sheetRowToLegalCase(row: any, idx = 0): LegalCase | null {
     indicio_busca_apreensao: truthy(ba),
     produtos: g(row, "Produtos", "produtos") || undefined,
     dataDistribuicao: g(row, "Distribuicao", "distribuicao") || undefined,
-    atendente: g(row, "Assistente", "assistente") || undefined,
+    assistente: assistente || undefined,
+    atendente: assistente || undefined,
     empresa_id: g(row, "EmpresaId", "empresa_id") || undefined,
     risco: "medio",
     linkConsulta: "",
