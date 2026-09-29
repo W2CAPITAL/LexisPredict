@@ -1,10 +1,27 @@
 "use client";
 import { processarCaso, type LegalCase } from "@/lib/case-logic";
 import { supabase } from "@/lib/supabase";
+import { ensurePlanilhaCarteiraSeededAction } from "@/app/actions/sheets-bootstrap-action";
 const KEY='lexis_carteira_client_v4';
 const TTL_MS=30*60*1000;
 type Box={at:number;empresaKey:string;cases:LegalCase[]};
 let box:Box|null=null; let inflight:Promise<LegalCase[]>|null=null; let inflightKey='';
+let bootstrapPromise: Promise<void> | null = null;
+
+async function ensurePortfolioBootstrapOnce() {
+  if (!bootstrapPromise) {
+    bootstrapPromise = ensurePlanilhaCarteiraSeededAction()
+      .then((result) => {
+        if (!result.ok && !result.skipped) {
+          console.warn('[carteira] bootstrap da planilha não concluído', result.reason || result);
+        }
+      })
+      .catch((error) => {
+        console.warn('[carteira] bootstrap da planilha falhou', error);
+      });
+  }
+  await bootstrapPromise;
+}
 function read(key:string):Box|null{try{const p=JSON.parse(localStorage.getItem(KEY)||'null');if(!p||p.empresaKey!==key||!Array.isArray(p.cases))return null;return p;}catch{return null;}}
 function write(v:Box){try{localStorage.setItem(KEY,JSON.stringify(v));}catch{}}
 export function peekCarteiraClientCache(empresaKey='default'):LegalCase[]|null{const b=box&&box.empresaKey===empresaKey?box:read(empresaKey);if(!b)return null;box=b;return Date.now()-b.at<TTL_MS?b.cases:null;}
@@ -83,6 +100,10 @@ export async function fetchCarteiraPageClient(opts: {
 
   const limit = Math.max(1, Math.min(Number(opts.limit || 200), 500));
   const offset = Math.max(0, Number(opts.offset || 0));
+
+  // Na primeira leitura, garante que a carteira histórica da planilha exista no
+  // Postgres. Depois do bootstrap a action faz apenas um rebind barato.
+  if (offset === 0) await ensurePortfolioBootstrapOnce();
 
   let query = supabase
     .from("processos")
