@@ -109,7 +109,11 @@ function getWeight(t: string | null | undefined): number {
 export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminView = false) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  // Híbrido: Postgres é fonte da verdade na UI. Planilha só espelha (write).
+  if (offset === 0) {
+    const { ensurePlanilhaCarteiraSeededAction } = await import("@/app/actions/sheets-bootstrap-action");
+    await ensurePlanilhaCarteiraSeededAction().catch(() => null);
+  }
+  // Após o bootstrap, Postgres permanece a fonte da verdade operacional.
   return await getStoredCasesPageForEmpresa(ctx.empresa_id, limit, offset, adminView);
 }
 
@@ -134,6 +138,8 @@ export async function fetchRepoCases() {
   if (!ctx.empresa_id) return [];
   const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
   try {
+    const { ensurePlanilhaCarteiraSeededAction } = await import("@/app/actions/sheets-bootstrap-action");
+    await ensurePlanilhaCarteiraSeededAction().catch(() => null);
     return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
   } catch {
     return [];
@@ -1378,6 +1384,12 @@ export async function fetchCompanyProcessosAction() {
       return { ...empty, error: "supervisao_required" };
     }
 
+    const { ensurePlanilhaCarteiraSeededAction } = await import("@/app/actions/sheets-bootstrap-action");
+    await ensurePlanilhaCarteiraSeededAction().catch((e: any) => {
+      console.error("[company] bootstrap planilha", e?.message);
+      return null;
+    });
+
     // /processos é a visão consolidada da empresa e exige escopo wide.
     const { fetchRankingAtendentesEmpresaAction } = await import(
       "@/app/actions/ranking-atendentes-action"
@@ -2136,6 +2148,10 @@ export async function fetchCompanyProcessosPageAction(opts?: {
     const limit = Math.min(Math.max(opts?.limit ?? 200, 50), 500);
     const offset = Math.max(opts?.offset ?? 0, 0);
     const onlyAtivos = opts?.onlyAtivos !== false;
+    if (offset === 0) {
+      const { ensurePlanilhaCarteiraSeededAction } = await import("@/app/actions/sheets-bootstrap-action");
+      await ensurePlanilhaCarteiraSeededAction().catch(() => null);
+    }
     const cases = await getStoredCasesPageForEmpresa(
       ctx.empresa_id,
       limit,
