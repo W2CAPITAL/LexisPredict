@@ -2,7 +2,7 @@
 import { processarCaso, type LegalCase } from "@/lib/case-logic";
 import { supabase } from "@/lib/supabase";
 import { ensurePlanilhaCarteiraSeededAction } from "@/app/actions/sheets-bootstrap-action";
-const KEY='lexis_carteira_client_v4';
+const KEY='lexis_carteira_client_v5';
 const TTL_MS=30*60*1000;
 type Box={at:number;empresaKey:string;cases:LegalCase[]};
 let box:Box|null=null; let inflight:Promise<LegalCase[]>|null=null; let inflightKey='';
@@ -13,10 +13,12 @@ async function ensurePortfolioBootstrapOnce() {
     bootstrapPromise = ensurePlanilhaCarteiraSeededAction()
       .then((result) => {
         if (!result.ok && !result.skipped) {
+          bootstrapPromise = null;
           console.warn('[carteira] bootstrap da planilha não concluído', result.reason || result);
         }
       })
       .catch((error) => {
+        bootstrapPromise = null;
         console.warn('[carteira] bootstrap da planilha falhou', error);
       });
   }
