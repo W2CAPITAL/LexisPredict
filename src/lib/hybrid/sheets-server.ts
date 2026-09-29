@@ -126,7 +126,8 @@ export async function sheetsServerPost(body: Record<string, unknown>): Promise<{
   const action = String(body.action || "ping");
   // Escritas são confirmadas antes de retornar: o Apps Script pode precisar
   // aguardar lock e gravar lotes grandes. Leituras continuam rápidas.
-  const post = await sheetsPost(body, action === "upsert_batch" ? 30000 : 3500);
+  const timeoutMs = action === "upsert_batch" ? 30000 : action === "list" ? 15000 : 3500;
+  const post = await sheetsPost(body, timeoutMs);
   if (post.ok) return post;
 
   if (action !== "write" && action !== "upsert_batch") {
