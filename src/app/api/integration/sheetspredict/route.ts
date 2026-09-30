@@ -94,16 +94,19 @@ export async function POST(req:NextRequest){
         descricao:clean(m?.descricao||m?.texto,2400)
       })):[];
       const djenTexts=Array.isArray(body.djenTexts)?body.djenTexts.slice(0,12).map((x:unknown)=>clean(x,4000)).filter(Boolean):[];
+      const eventoTipo=(clean(body.eventoTipo,80)||null) as any;
+      const canalRaw=clean(body.canal,20).toLowerCase();
+      const canal=(['whatsapp','email','interno'].includes(canalRaw)?canalRaw:'whatsapp') as 'whatsapp'|'email'|'interno';
       const result=await gerarRascunhoEstrategico({
         clienteNome:clean(body.clienteNome||body.cliente,180)||'Cliente',
         protocolo:clean(body.protocolo||body.cnj,80),
         ultimoRetorno:clean(body.ultimoRetorno,80)||null,
         movimentos,
         djenTexts,
-        eventoTipo:clean(body.eventoTipo,80) as any||null,
+        eventoTipo,
         eventoResumo:clean(body.eventoResumo,1000)||null,
         preferredModel:clean(body.preferredModel||'omni',80),
-        canal:['whatsapp','email','interno'].includes(clean(body.canal,20))?clean(body.canal,20) as any:'whatsapp',
+        canal,
         tem_novo_andamento:!!body.temNovoAndamento,
         datajud_encerrado_tribunal:!!body.encerradoTribunal,
         indicio_busca_apreensao:!!body.indicioBuscaApreensao,
