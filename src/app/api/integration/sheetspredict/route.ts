@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {NextRequest,NextResponse} from 'next/server';
 import {chatAIFlow} from '@/ai/flows/chat-ai-flow';
+import {gerarRascunhoEstrategico} from '@/ai/motor-despacho';
 import {fetchDataJud,searchDataJudByCpf,searchDataJudByNome} from '@/lib/datajud';
 
 export const runtime='nodejs';
@@ -32,7 +33,7 @@ function serviceInfo(){
   return {
     ok:true,
     service:'lexispredict',
-    capabilities:['datajud','chat'],
+    capabilities:['datajud','chat','dispatch'],
     tenantDataExposed:false
   };
 }
@@ -77,10 +78,44 @@ export async function POST(req:NextRequest){
       const result=await chatAIFlow({
         pergunta:prompt,
         historico:Array.isArray(body.history)?body.history.slice(-10):undefined,
-        preferred:clean(body.preferred||'claude',80),
+        preferred:clean(body.preferred||'omni',80),
         preferredModel:clean(body.preferredModel,120)||undefined,
         tribunalContext:clean(body.tribunalContext,12000)||undefined,
         baClaudeDjen:!!body.baClaudeDjen
+      });
+      return NextResponse.json({ok:true,result},{headers:{'Cache-Control':'no-store'}});
+    }
+
+    if(action==='dispatch'){
+      const movimentos=Array.isArray(body.movimentos)?body.movimentos.slice(0,24).map((m:any)=>({
+        dataHora:clean(m?.dataHora||m?.data,80),
+        nome:clean(m?.nome||m?.tipo,500),
+        complemento:clean(m?.complemento,1800),
+        descricao:clean(m?.descricao||m?.texto,2400)
+      })):[];
+      const djenTexts=Array.isArray(body.djenTexts)?body.djenTexts.slice(0,12).map((x:unknown)=>clean(x,4000)).filter(Boolean):[];
+      const result=await gerarRascunhoEstrategico({
+        clienteNome:clean(body.clienteNome||body.cliente,180)||'Cliente',
+        protocolo:clean(body.protocolo||body.cnj,80),
+        ultimoRetorno:clean(body.ultimoRetorno,80)||null,
+        movimentos,
+        djenTexts,
+        eventoTipo:clean(body.eventoTipo,80) as any||null,
+        eventoResumo:clean(body.eventoResumo,1000)||null,
+        preferredModel:clean(body.preferredModel||'omni',80),
+        canal:['whatsapp','email','interno'].includes(clean(body.canal,20))?clean(body.canal,20) as any:'whatsapp',
+        tem_novo_andamento:!!body.temNovoAndamento,
+        datajud_encerrado_tribunal:!!body.encerradoTribunal,
+        indicio_busca_apreensao:!!body.indicioBuscaApreensao,
+        em_cumprimento_sentenca:!!body.emCumprimento,
+        datajud_ultimo_nome:clean(body.datajudUltimoNome,500)||null,
+        cumprimento_pendente_necessario:!!body.cumprimentoPendente,
+        is_procedente:!!body.procedente,
+        oportunidade_elegivel:!!body.oportunidadeElegivel,
+        oportunidade_score:Number.isFinite(Number(body.oportunidadeScore))?Number(body.oportunidadeScore):null,
+        oportunidade_tipo_credito:clean(body.oportunidadeTipoCredito,120)||null,
+        oportunidade_dias_apos_transito:Number.isFinite(Number(body.diasAposTransito))?Number(body.diasAposTransito):null,
+        texto_pobre:!!body.textoPobre
       });
       return NextResponse.json({ok:true,result},{headers:{'Cache-Control':'no-store'}});
     }
