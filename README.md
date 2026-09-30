@@ -219,6 +219,16 @@ UI (Next.js 15)
 
 ---
 
+## Integração com SheetsPredict
+
+O LexisPredict possui uma **API de serviço dedicada** para integrações server-to-server com o SheetsPredict. Essa credencial é independente do login de usuários e deve existir apenas no ambiente privado do deploy.
+
+A superfície de integração é deliberadamente limitada a capacidades necessárias para interoperabilidade, como consulta jurídica e IA. Ela não transforma uma chave de serviço genérica em acesso à base multi-tenant do CRM.
+
+Credenciais, endereços privados de deploy e detalhes operacionais de segurança não são publicados neste repositório.
+
+---
+
 ## Notas honestas
 
 | Assunto | Verdade |
