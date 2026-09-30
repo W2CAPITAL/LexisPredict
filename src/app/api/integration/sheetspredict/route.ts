@@ -8,8 +8,11 @@ export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
-function configuredKey(){
-  return String(process.env.LEXISPREDICT_API_KEY||'').trim();
+function configuredKeys(){
+  const single=String(process.env.LEXISPREDICT_API_KEY||'').trim();
+  const shared=String(process.env.SHEETSPREDICT_INTEGRATION_KEY||'').trim();
+  const many=String(process.env.LEXISPREDICT_API_KEYS||'').split(/[\n,]+/).map(v=>v.trim()).filter(Boolean);
+  return [...new Set([single,shared,...many].filter(Boolean))];
 }
 function bearer(req:NextRequest){
   const raw=String(req.headers.get('authorization')||'');
@@ -21,9 +24,9 @@ function sameSecret(a:string,b:string){
   return aa.length===bb.length&&crypto.timingSafeEqual(aa,bb);
 }
 function requireService(req:NextRequest){
-  const expected=configuredKey();
-  if(!expected)return NextResponse.json({ok:false,error:'Integração de serviço indisponível.'},{status:503});
-  if(!sameSecret(bearer(req),expected))return NextResponse.json({ok:false,error:'Unauthorized'},{status:401});
+  const expected=configuredKeys();
+  if(!expected.length)return NextResponse.json({ok:false,error:'Integração de serviço indisponível.'},{status:503});
+  if(!expected.some(key=>sameSecret(bearer(req),key)))return NextResponse.json({ok:false,error:'Unauthorized'},{status:401});
   return null;
 }
 function clean(value:unknown,max=12000){
@@ -40,11 +43,14 @@ function serviceInfo(extra:Record<string,unknown>={}){
 }
 
 export async function GET(req:NextRequest){
-  const expected=configuredKey();
+  const expected=configuredKeys();
   const supplied=bearer(req);
-  const configured=!!expected;
-  const authorized=configured&&sameSecret(supplied,expected);
-  return NextResponse.json(serviceInfo({configured,authorized}),{status:200,headers:{'Cache-Control':'no-store'}});
+  const configured=expected.length>0;
+  const authorized=configured&&expected.some(key=>sameSecret(supplied,key));
+  return NextResponse.json(serviceInfo({
+    configured,authorized,
+    requiredEnv:configured?undefined:['LEXISPREDICT_API_KEY','LEXISPREDICT_API_KEYS','SHEETSPREDICT_INTEGRATION_KEY']
+  }),{status:200,headers:{'Cache-Control':'no-store'}});
 }
 
 export async function POST(req:NextRequest){
