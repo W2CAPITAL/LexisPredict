@@ -29,18 +29,22 @@ function requireService(req:NextRequest){
 function clean(value:unknown,max=12000){
   return String(value??'').replace(/\u0000/g,'').trim().slice(0,max);
 }
-function serviceInfo(){
+function serviceInfo(extra:Record<string,unknown>={}){
   return {
     ok:true,
     service:'lexispredict',
     capabilities:['datajud','chat','dispatch'],
-    tenantDataExposed:false
+    tenantDataExposed:false,
+    ...extra
   };
 }
 
 export async function GET(req:NextRequest){
-  const denied=requireService(req);if(denied)return denied;
-  return NextResponse.json(serviceInfo(),{headers:{'Cache-Control':'no-store'}});
+  const expected=configuredKey();
+  const supplied=bearer(req);
+  const configured=!!expected;
+  const authorized=configured&&sameSecret(supplied,expected);
+  return NextResponse.json(serviceInfo({configured,authorized}),{status:200,headers:{'Cache-Control':'no-store'}});
 }
 
 export async function POST(req:NextRequest){
