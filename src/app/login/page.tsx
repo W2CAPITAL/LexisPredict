@@ -24,6 +24,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { getTenantBrand } from "@/lib/tenant-brand";
 import Link from "next/link";
 import { enableGuestMode } from "@/lib/guest-mode";
+import { safetyLoginAction } from "@/app/actions/safety-mode-actions";
+import { isQuotaOrBillingError } from "@/lib/hybrid/safety-mode";
 
 const brand = getTenantBrand();
 
@@ -76,16 +78,39 @@ export default function LoginPage() {
     e.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
-
-    try {
-      const loginEmail = email.trim().toLowerCase();
-      if (!supabase) {
+    const loginEmail = email.trim().toLowerCase();
+    const trySafety = async (reason: string) => {
+      const candidates = Array.from(new Set([
+        loginEmail,
+        loginEmail.includes("@") ? loginEmail.split("@")[0] : "",
+      ].filter(Boolean)));
+      let lastError = "";
+      for (const candidate of candidates) {
+        const safety = await safetyLoginAction(candidate, password);
+        if (safety.ok) {
+          toast({
+            title: "Modo de contingência",
+            description: "Supabase indisponível. A carteira será aberta pela planilha com sessão temporária protegida.",
+          });
+          window.location.replace("/modo-seguranca");
+          return true;
+        }
+        lastError = safety.error || lastError;
+      }
+      if (reason) {
         toast({
-          title: "Supabase não configurado",
-          description: "A edição comercial exige Supabase ativo.",
+          title: "Contingência indisponível",
+          description: lastError || "Não foi possível validar a sessão de contingência.",
           variant: "destructive",
         });
-        setIsSubmitting(false);
+      }
+      setIsSubmitting(false);
+      return false;
+    };
+
+    try {
+      if (!supabase) {
+        await trySafety("Supabase não configurado");
         return;
       }
 
@@ -112,11 +137,13 @@ export default function LoginPage() {
 
       if (authError) {
         const msg = String((authError as any)?.message || authError);
+        if (isQuotaOrBillingError(msg) || /fetch|network|timeout|521|402|429/i.test(msg)) {
+          await trySafety(msg);
+          return;
+        }
         toast({
           title: "Não foi possível entrar",
-          description: /fetch|network|timeout|521|402|429/i.test(msg)
-            ? "Falha temporária de autenticação. Tente novamente."
-            : "E-mail ou senha inválidos.",
+          description: "E-mail ou senha inválidos.",
           variant: "destructive",
         });
         setIsSubmitting(false);
@@ -136,12 +163,7 @@ export default function LoginPage() {
         window.location.replace("/");
       }
     } catch {
-      toast({
-        title: "Falha de rede",
-        description: "Não foi possível concluir o login.",
-        variant: "destructive",
-      });
-      setIsSubmitting(false);
+      await trySafety("Falha de rede");
     }
   };
 

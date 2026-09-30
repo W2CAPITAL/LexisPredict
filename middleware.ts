@@ -22,6 +22,7 @@ const PUBLIC_API = [
   '/api/health',
   '/api/version',
   '/api/commercial/health',
+  '/api/integration/sheetspredict',
   '/api/webhook',
   '/api/webhooks',
 ]
@@ -81,7 +82,7 @@ export async function middleware(request: NextRequest) {
   const isFirstRunPage = path === '/primeiro-acesso'
   const isStaticFile = /\.[a-z0-9]+$/i.test(path)
   const isPublicApi = starts(path, PUBLIC_API)
-  const isPublic = isAuthPage || path.startsWith('/termos') || isPublicApi || isStaticFile
+  const isPublic = isAuthPage || path.startsWith('/termos') || path === '/modo-seguranca' || isPublicApi || isStaticFile
   const isGuest = request.cookies.get('lexis_guest')?.value === '1'
 
   if (isGuest && !isAuthPage) {
