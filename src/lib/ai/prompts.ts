@@ -141,7 +141,6 @@ export function resolveSystemPrompt(
       return SYSTEM_PROMPTS.WHATSAPP_ASSISTANT;
     case 'bpmn':
     case 'process_model':
-    case 'workflow':
       return SYSTEM_PROMPTS.BPMN_PROCESS;
     case 'verdict':
       return SYSTEM_PROMPTS.VERDICT_ANALYSIS;
