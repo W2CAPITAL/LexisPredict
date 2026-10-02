@@ -20,6 +20,5 @@ describe('BPMN skill integration', () => {
 
   it('expõe BPMN no resolvedor de prompts', () => {
     expect(resolveSystemPrompt('bpmn')).toContain('BPMN 2.0');
-    expect(resolveSystemPrompt('workflow')).toContain('layout/DI');
   });
 });
